@@ -178,6 +178,8 @@ SB.Single = {
     this.overlay.classList.add("show");
     // Release the camera as soon as the round is over (Rematch restarts it).
     if (this.pose) this.pose.stop();
+    // Record to the fighter profile + leaderboard, then offer the share card.
+    if (SB.afterMatch) setTimeout(() => SB.afterMatch({ mode: "single", won, kos: won ? 1 : 0, score: Math.round(this.hpYou) }), 500);
     SB.Coach.say(won ? "win" : "lose", won ? "player won the round" : "player lost the round",
       (t) => { const s = document.createElement("div"); s.className = "sub"; s.textContent = t; this.overlay.insertBefore(s, this.overlay.querySelector(".end-actions")); });
   },

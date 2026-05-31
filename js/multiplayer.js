@@ -362,6 +362,7 @@ SB.MP = {
     this._menuButton();
     this.overlay.classList.add("show");
     if (this.pose) this.pose.stop();   // release the camera when the match ends
+    if (SB.afterMatch) setTimeout(() => SB.afterMatch({ mode: "multiplayer", won, kos: won ? 1 : 0, score: Math.round(this.hpYou) }), 500);
     SB.Coach.say(won ? "win" : "lose", won ? "won the multiplayer match" : "lost the multiplayer match",
       (t) => { const s = document.createElement("div"); s.className = "sub"; s.textContent = t; this.overlay.insertBefore(s, this.overlay.querySelector(".end-actions")); });
   },

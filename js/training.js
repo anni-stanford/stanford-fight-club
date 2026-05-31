@@ -74,6 +74,7 @@ SB.Training = {
       if (this.visionEl) { this.visionEl.textContent = "camera off"; this.visionEl.className = "vision-chip"; }
       SB.Coach.say("win", `finished training, ${this.hits} clean reps`, (t) => (this.coachEl.textContent = t));
       if (this.pose) this.pose.stop();   // release the camera when the drill ends
+      if (SB.afterMatch) SB.afterMatch({ mode: "training", score: this.hits });
       return;
     }
     const move = this.drill[this.idx];

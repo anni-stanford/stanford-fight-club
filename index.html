@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=17" />
+  <link rel="stylesheet" href="css/styles.css?v=18" />
 
   <!-- TensorFlow.js + MoveNet pose detection (CDN, no build step needed) -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.20.0/dist/tf-core.min.js"></script>
@@ -53,6 +53,16 @@
   <!-- ====================== MAIN MENU ====================== -->
   <section id="screen-menu" class="screen">
     <div class="menu-wrap">
+      <!-- Fighter profile chip (tap to open dashboard) -->
+      <button class="glass profile-chip" id="profile-chip" hidden>
+        <span class="pc-av" id="pc-av">🥊</span>
+        <span class="pc-info">
+          <span class="pc-name" id="pc-name">Guest</span>
+          <span class="pc-belt" id="pc-belt">White Belt</span>
+        </span>
+        <span class="pc-rating" id="pc-rating">0</span>
+      </button>
+
       <div class="logo logo-big">
         <span class="logo-glove">🥊</span>
         <h1 class="brand">Fight<span>Club</span></h1>
@@ -74,6 +84,11 @@
           <span class="mode-emoji">🌐</span>
           <h3>Multiplayer</h3>
           <p>Box a friend across the screen. Share a link, they tap, you fight.</p>
+        </button>
+        <button class="glass mode-card" data-mode="dashboard">
+          <span class="mode-emoji">🏆</span>
+          <h3>Dashboard</h3>
+          <p>Your record, belt rank and the leaderboard. Climb the ranks and challenge friends.</p>
         </button>
       </div>
 
@@ -196,15 +211,72 @@
     </div>
   </section>
 
+  <!-- ====================== DASHBOARD / LEADERBOARD ====================== -->
+  <section id="screen-dashboard" class="screen">
+    <div class="menu-wrap dash-wrap">
+      <button class="btn btn-ghost btn-back" data-back style="align-self:flex-start">← Menu</button>
+
+      <div class="glass dash-profile" id="dash-profile">
+        <span class="dash-av" id="dash-av">🥊</span>
+        <div class="dash-id">
+          <h2 id="dash-name">Guest</h2>
+          <span class="dash-belt" id="dash-belt">White Belt</span>
+        </div>
+        <button class="btn btn-ghost small" id="dash-edit">Edit</button>
+      </div>
+
+      <div class="dash-stats">
+        <div class="glass stat"><b id="st-wins">0</b><span>Wins</span></div>
+        <div class="glass stat"><b id="st-losses">0</b><span>Losses</span></div>
+        <div class="glass stat"><b id="st-kos">0</b><span>KOs</span></div>
+        <div class="glass stat"><b id="st-streak">0</b><span>Day streak</span></div>
+        <div class="glass stat"><b id="st-rating">0</b><span>Rating</span></div>
+      </div>
+
+      <button class="btn btn-primary btn-block" id="dash-challenge">🔥 Challenge a friend</button>
+
+      <div class="glass leaderboard">
+        <h3>🏆 Leaderboard</h3>
+        <p class="muted small" id="lb-scope">Top fighters on this device. Global league coming soon.</p>
+        <div class="lb-list" id="lb-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================== ONBOARDING MODAL ====================== -->
+  <div class="modal-backdrop" id="onboard" hidden>
+    <div class="glass card card-narrow">
+      <div class="logo"><span class="logo-glove">🥊</span><h1 class="brand">Fight<span>Club</span></h1></div>
+      <h2 id="onboard-title">Name your fighter</h2>
+      <p class="muted small" id="onboard-sub">One step and you're in. Pick a name and a fighter emoji — your record and rank save automatically.</p>
+      <input id="onboard-name" class="input" maxlength="18" placeholder="Fighter name" />
+      <div class="avatar-grid" id="onboard-avatars"></div>
+      <button id="onboard-save" class="btn btn-primary btn-block">Enter the ring 🥊</button>
+    </div>
+  </div>
+
+  <!-- ====================== POST-MATCH SHARE CARD ====================== -->
+  <div class="modal-backdrop" id="sharecard" hidden>
+    <div class="glass card card-narrow">
+      <div id="share-emoji" style="font-size:52px">🏆</div>
+      <h2 id="share-title">Victory!</h2>
+      <p class="muted small" id="share-sub">You're climbing the ranks.</p>
+      <a id="share-wa" class="btn btn-whatsapp btn-block" target="_blank" rel="noopener">Challenge a friend on WhatsApp</a>
+      <button id="share-copy" class="btn btn-ghost btn-block">Copy challenge link</button>
+      <button id="share-close" class="btn btn-ghost btn-block">Close</button>
+    </div>
+  </div>
+
   <!-- App modules (?v bumped on each deploy so browsers always load the latest) -->
-  <script src="js/music.js?v=17"></script>
-  <script src="js/config.js?v=17"></script>
-  <script src="js/pose.js?v=17"></script>
-  <script src="js/gestures.js?v=17"></script>
-  <script src="js/coach.js?v=17"></script>
-  <script src="js/training.js?v=17"></script>
-  <script src="js/game.js?v=17"></script>
-  <script src="js/multiplayer.js?v=17"></script>
-  <script src="js/main.js?v=17"></script>
+  <script src="js/music.js?v=18"></script>
+  <script src="js/fightclub.js?v=18"></script>
+  <script src="js/config.js?v=18"></script>
+  <script src="js/pose.js?v=18"></script>
+  <script src="js/gestures.js?v=18"></script>
+  <script src="js/coach.js?v=18"></script>
+  <script src="js/training.js?v=18"></script>
+  <script src="js/game.js?v=18"></script>
+  <script src="js/multiplayer.js?v=18"></script>
+  <script src="js/main.js?v=18"></script>
 </body>
 </html>
