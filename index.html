@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=18" />
+  <link rel="stylesheet" href="css/styles.css?v=19" />
 
   <!-- TensorFlow.js + MoveNet pose detection (CDN, no build step needed) -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.20.0/dist/tf-core.min.js"></script>
@@ -71,22 +71,22 @@
 
       <div class="mode-grid">
         <button class="glass mode-card" data-mode="training">
-          <span class="mode-emoji">🎯</span>
+          <span class="mode-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg></span>
           <h3>Training</h3>
           <p>Learn the moves. The coach watches your form and corrects you in real time.</p>
         </button>
         <button class="glass mode-card" data-mode="single">
-          <span class="mode-emoji">🤖</span>
+          <span class="mode-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="11" rx="3"/><path d="M12 8V4"/><circle cx="12" cy="3" r="1.2" fill="currentColor" stroke="none"/><circle cx="9.2" cy="13.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="14.8" cy="13.5" r="1.3" fill="currentColor" stroke="none"/><path d="M2.5 12.5v3M21.5 12.5v3"/></svg></span>
           <h3>Single Player</h3>
           <p>Fight a reactive AI opponent. Slip, block and counter to win the round.</p>
         </button>
         <button class="glass mode-card" data-mode="multiplayer">
-          <span class="mode-emoji">🌐</span>
+          <span class="mode-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="8" r="3"/><circle cx="16.5" cy="8" r="3"/><path d="M2.5 19c0-3 2.2-5 5-5s5 2 5 5"/><path d="M11.5 19c0-3 2.2-5 5-5s5 2 5 5"/></svg></span>
           <h3>Multiplayer</h3>
           <p>Box a friend across the screen. Share a link, they tap, you fight.</p>
         </button>
         <button class="glass mode-card" data-mode="dashboard">
-          <span class="mode-emoji">🏆</span>
+          <span class="mode-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M7 5.5H4.5V7a3 3 0 0 0 3 3"/><path d="M17 5.5h2.5V7a3 3 0 0 1-3 3"/><path d="M9.5 20h5"/><path d="M12 14v3"/><path d="M10 20l.5-3h3l.5 3"/></svg></span>
           <h3>Dashboard</h3>
           <p>Your record, belt rank and the leaderboard. Climb the ranks and challenge friends.</p>
         </button>
@@ -268,15 +268,16 @@
   </div>
 
   <!-- App modules (?v bumped on each deploy so browsers always load the latest) -->
-  <script src="js/music.js?v=18"></script>
-  <script src="js/fightclub.js?v=18"></script>
-  <script src="js/config.js?v=18"></script>
-  <script src="js/pose.js?v=18"></script>
-  <script src="js/gestures.js?v=18"></script>
-  <script src="js/coach.js?v=18"></script>
-  <script src="js/training.js?v=18"></script>
-  <script src="js/game.js?v=18"></script>
-  <script src="js/multiplayer.js?v=18"></script>
-  <script src="js/main.js?v=18"></script>
+  <script src="js/music.js?v=19"></script>
+  <script src="js/db.js?v=19"></script>
+  <script src="js/fightclub.js?v=19"></script>
+  <script src="js/config.js?v=19"></script>
+  <script src="js/pose.js?v=19"></script>
+  <script src="js/gestures.js?v=19"></script>
+  <script src="js/coach.js?v=19"></script>
+  <script src="js/training.js?v=19"></script>
+  <script src="js/game.js?v=19"></script>
+  <script src="js/multiplayer.js?v=19"></script>
+  <script src="js/main.js?v=19"></script>
 </body>
 </html>

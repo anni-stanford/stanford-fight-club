@@ -67,18 +67,23 @@
     document.getElementById("st-rating").textContent = SB.Profile.rating(p);
 
     const list = document.getElementById("lb-list");
-    list.innerHTML = "";
-    const board = SB.Profile.leaderboard();
-    if (!board.length) { list.innerHTML = '<p class="muted small">No fighters yet — win a match to appear here.</p>'; return; }
-    board.forEach((f, i) => {
-      const row = document.createElement("div");
-      row.className = "lb-row" + (f.id === p.id ? " me" : "");
-      row.innerHTML =
-        `<span class="lb-rank">${i + 1}</span>
-         <span class="lb-av">${f.avatar}</span>
-         <span class="lb-name">${escapeHtml(f.name)}<br><span class="lb-belt">${SB.Profile.belt(f).name} · ${f.wins || 0}W ${f.losses || 0}L</span></span>
-         <span class="lb-rating">${SB.Profile.rating(f)}</span>`;
-      list.appendChild(row);
+    list.innerHTML = '<p class="muted small">Loading…</p>';
+    SB.DB.fetchLeaderboard((board, isGlobal) => {
+      document.getElementById("lb-scope").textContent = isGlobal
+        ? "Global rankings — every fighter, everywhere."
+        : "Top fighters on this device. Add a database URL to go global.";
+      list.innerHTML = "";
+      if (!board.length) { list.innerHTML = '<p class="muted small">No fighters yet — win a match to appear here.</p>'; return; }
+      board.slice(0, 100).forEach((f, i) => {
+        const row = document.createElement("div");
+        row.className = "lb-row" + (f.id === p.id ? " me" : "");
+        row.innerHTML =
+          `<span class="lb-rank">${i + 1}</span>
+           <span class="lb-av">${f.avatar || "🥊"}</span>
+           <span class="lb-name">${escapeHtml(f.name || "Fighter")}<br><span class="lb-belt">${SB.Profile.belt(f).name} · ${f.wins || 0}W ${f.losses || 0}L</span></span>
+           <span class="lb-rating">${SB.Profile.rating(f)}</span>`;
+        list.appendChild(row);
+      });
     });
   }
   document.getElementById("dash-edit").onclick = () => openOnboard(false);

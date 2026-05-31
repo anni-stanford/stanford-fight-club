@@ -68,10 +68,12 @@ SB.Profile = {
 
   _save() {
     localStorage.setItem(this.CUR, JSON.stringify(this.current));
-    // mirror into the all-profiles map that powers the leaderboard
+    // mirror into the local all-profiles map (offline / fallback leaderboard)
     const all = this._all();
     all[this.current.id] = this.current;
     localStorage.setItem(this.ALL, JSON.stringify(all));
+    // push to the shared database so everyone's records live in one place
+    if (SB.DB) SB.DB.saveProfile(this.current);
   },
 
   _all() {
@@ -87,7 +89,8 @@ SB.Profile = {
     return b;
   },
 
-  leaderboard() {
+  // Local-only leaderboard (used as the offline / fallback source by SB.DB).
+  localLeaderboard() {
     const all = Object.values(this._all());
     all.sort((a, b) => this.rating(b) - this.rating(a));
     return all;

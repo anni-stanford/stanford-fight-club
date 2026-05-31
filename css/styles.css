@@ -170,6 +170,12 @@ h3 { font-size: 17px; }
 }
 .mode-card:hover { transform: translateY(-4px); border-color: var(--accent); }
 .mode-emoji { font-size: 34px; }
+.mode-icon { display: inline-flex; }
+.mode-icon svg {
+  width: 40px; height: 40px; color: var(--accent2);
+  filter: drop-shadow(0 4px 10px rgba(255,138,59,.3));
+}
+.mode-card:hover .mode-icon svg { color: var(--accent); }
 .mode-card p { color: var(--muted); font-size: 13.5px; line-height: 1.5; }
 .mode-card-join { cursor: default; }
 .mode-card-join:hover { transform: none; border-color: var(--glass-border); }
