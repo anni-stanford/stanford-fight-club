@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0" />
-  <title>ShadowBox — Your Body Is The Controller</title>
-  <meta name="description" content="ShadowBox turns your webcam into a boxing ring. No controller, no gym, no gear. Train, fight an AI, or box a friend across the screen." />
+  <title>Fight Club — Your Body Is The Controller</title>
+  <meta name="description" content="Fight Club turns your webcam into a boxing ring. No controller, no gym, no gear. Train, fight an AI, or box a friend across the screen." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=16" />
+  <link rel="stylesheet" href="css/styles.css?v=17" />
 
   <!-- TensorFlow.js + MoveNet pose detection (CDN, no build step needed) -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.20.0/dist/tf-core.min.js"></script>
@@ -30,13 +30,13 @@
     <div class="glass card card-narrow">
       <div class="logo">
         <span class="logo-glove">🥊</span>
-        <h1 class="brand">Shadow<span>Box</span></h1>
+        <h1 class="brand">Fight<span>Club</span></h1>
       </div>
       <p class="tagline">Your body is the controller. Step in and throw down.</p>
       <div class="divider"></div>
       <h2>Enter your OpenAI API key</h2>
       <p class="muted small">
-        ShadowBox uses OpenAI to power your live AI coach commentary and
+        Fight Club uses OpenAI to power your live AI coach commentary and
         round-by-round feedback. Your key is stored only in this browser
         (localStorage) and is never sent anywhere except OpenAI.
       </p>
@@ -55,7 +55,7 @@
     <div class="menu-wrap">
       <div class="logo logo-big">
         <span class="logo-glove">🥊</span>
-        <h1 class="brand">Shadow<span>Box</span></h1>
+        <h1 class="brand">Fight<span>Club</span></h1>
       </div>
       <p class="tagline">No controller. No gym. No gear. Just square up and fight.</p>
 
@@ -99,7 +99,7 @@
       </div>
       <aside class="glass sidebar">
         <h3>Training</h3>
-        <p class="muted small">Follow the prompts. Throw each move when asked — ShadowBox grades your timing and form.</p>
+        <p class="muted small">Follow the prompts. Throw each move when asked — Fight Club grades your timing and form.</p>
         <div class="move-list" id="training-movelist"></div>
         <div class="divider"></div>
         <div class="stat-row"><span>Reps landed</span><b id="training-score">0</b></div>
@@ -158,7 +158,7 @@
       <div class="glass card share-card" id="mp-joining" hidden>
         <h3>Joining match… 🥊</h3>
         <p class="muted small" id="mp-join-status">Connecting to host…</p>
-        <p class="muted small">If it keeps retrying, make sure your friend has the ShadowBox tab open and in the foreground.</p>
+        <p class="muted small">If it keeps retrying, make sure your friend has the Fight Club tab open and in the foreground.</p>
         <button id="mp-join-retry" class="btn btn-primary btn-block">Retry now</button>
       </div>
 
@@ -197,14 +197,14 @@
   </section>
 
   <!-- App modules (?v bumped on each deploy so browsers always load the latest) -->
-  <script src="js/music.js?v=16"></script>
-  <script src="js/config.js?v=16"></script>
-  <script src="js/pose.js?v=16"></script>
-  <script src="js/gestures.js?v=16"></script>
-  <script src="js/coach.js?v=16"></script>
-  <script src="js/training.js?v=16"></script>
-  <script src="js/game.js?v=16"></script>
-  <script src="js/multiplayer.js?v=16"></script>
-  <script src="js/main.js?v=16"></script>
+  <script src="js/music.js?v=17"></script>
+  <script src="js/config.js?v=17"></script>
+  <script src="js/pose.js?v=17"></script>
+  <script src="js/gestures.js?v=17"></script>
+  <script src="js/coach.js?v=17"></script>
+  <script src="js/training.js?v=17"></script>
+  <script src="js/game.js?v=17"></script>
+  <script src="js/multiplayer.js?v=17"></script>
+  <script src="js/main.js?v=17"></script>
 </body>
 </html>

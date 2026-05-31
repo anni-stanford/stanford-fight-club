@@ -54,7 +54,7 @@ SB.Coach = {
             {
               role: "system",
               content:
-                "You are a high-energy boxing coach in a webcam fitness game called ShadowBox. " +
+                "You are a high-energy boxing coach in a webcam fitness game called Fight Club. " +
                 "Reply with ONE short spoken line (max 12 words), no quotes, no emoji. Be motivating and specific.",
             },
             { role: "user", content: `Context (${kind}): ${summary}` },

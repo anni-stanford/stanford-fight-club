@@ -93,7 +93,7 @@ SB.MP = {
     this.peer.on("open", (id) => {
       this.roomCode = id;
       this._link = location.origin + location.pathname + "?room=" + encodeURIComponent(id);
-      this._waHref = "https://wa.me/?text=" + encodeURIComponent("Fight me on ShadowBox 🥊 Tap to box me live: " + this._link);
+      this._waHref = "https://wa.me/?text=" + encodeURIComponent("Fight me on Fight Club 🥊 Tap to box me live: " + this._link);
       this._fillHostLink();
     });
 
@@ -170,7 +170,7 @@ SB.MP = {
     clearTimeout(this._joinTimer);
     this._joinAttempts++;
     if (this._joinAttempts > 30) {
-      this._setJoinStatus("Couldn't reach the host. Make sure they have ShadowBox open in the foreground, then tap Retry.");
+      this._setJoinStatus("Couldn't reach the host. Make sure they have Fight Club open in the foreground, then tap Retry.");
       return;
     }
     this._setJoinStatus(`Host not ready yet… retrying (${this._joinAttempts})`);

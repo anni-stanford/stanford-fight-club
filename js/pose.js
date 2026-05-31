@@ -7,7 +7,7 @@
  * callback so the gesture classifier can interpret them.
  *
  * Single-webcam pose estimation is reliable for front-facing, full-body,
- * controlled-speed movement (exactly what ShadowBox asks for). We keep only
+ * controlled-speed movement (exactly what Fight Club asks for). We keep only
  * the keypoints we need for boxing and mirror everything so the player sees
  * themselves as in a mirror.
  */
