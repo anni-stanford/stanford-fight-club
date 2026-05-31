@@ -1,0 +1,12 @@
+{
+  "name": "shadowbox",
+  "version": "1.0.0",
+  "description": "ShadowBox turns your webcam into a boxing ring. Train, fight an AI, or box a friend across the screen — your body is the controller.",
+  "scripts": {
+    "start": "python3 -m http.server 7788",
+    "dev": "python3 -m http.server 7788",
+    "serve": "npx --yes serve --listen 7788"
+  },
+  "keywords": ["boxing", "webcam", "pose-detection", "fitness", "game", "tensorflowjs", "movenet", "webrtc"],
+  "license": "MIT"
+}
