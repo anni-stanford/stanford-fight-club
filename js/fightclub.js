@@ -59,6 +59,7 @@ SB.Profile = {
       id: "f_" + Math.random().toString(36).slice(2, 10),
       name: (name || this.randomName()).slice(0, 18),
       avatar: avatar || SB.AVATARS[0],
+      face: null, // data URL of the player's captured face (used as their opponent head)
       wins: 0, losses: 0, kos: 0, punches: 0,
       bestScore: 0, streak: 0, lastPlayed: null, created: Date.now(),
     };
@@ -75,12 +76,14 @@ SB.Profile = {
 
   _save() {
     localStorage.setItem(this.CUR, JSON.stringify(this.current));
+    // The face photo stays local to this device — never goes in the leaderboard.
+    const lean = Object.assign({}, this.current); delete lean.face;
     // mirror into the local all-profiles map (offline / fallback leaderboard)
     const all = this._all();
-    all[this.current.id] = this.current;
+    all[lean.id] = lean;
     localStorage.setItem(this.ALL, JSON.stringify(all));
     // push to the shared database so everyone's records live in one place
-    if (SB.DB) SB.DB.saveProfile(this.current);
+    if (SB.DB) SB.DB.saveProfile(lean);
   },
 
   _all() {

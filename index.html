@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=24" />
+  <link rel="stylesheet" href="css/styles.css?v=25" />
 
   <!-- TensorFlow.js + MoveNet pose detection (CDN, no build step needed) -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.20.0/dist/tf-core.min.js"></script>
@@ -26,33 +26,8 @@
   <!-- Background fight music toggle (synthesized, royalty-free) -->
   <button id="music-toggle" class="music-toggle" title="Toggle music" aria-label="Toggle music">🔊</button>
 
-  <!-- ====================== API KEY GATE ====================== -->
-  <section id="screen-apikey" class="screen active">
-    <div class="glass card card-narrow">
-      <div class="logo">
-        <span class="logo-glove">🥊</span>
-        <h1 class="brand">Fight<span>Club</span></h1>
-      </div>
-      <p class="tagline">Your body is the controller. Step in and throw down.</p>
-      <div class="divider"></div>
-      <h2>Enter your OpenAI API key</h2>
-      <p class="muted small">
-        Fight Club uses OpenAI to power your live AI coach commentary and
-        round-by-round feedback. Your key is stored only in this browser
-        (localStorage) and is never sent anywhere except OpenAI.
-      </p>
-      <input id="apikey-input" type="password" class="input" placeholder="sk-..." autocomplete="off" />
-      <label class="checkbox-row">
-        <input type="checkbox" id="apikey-skip" />
-        <span class="small muted">Skip for now (play without AI coach commentary)</span>
-      </label>
-      <button id="apikey-save" class="btn btn-primary btn-block">Continue</button>
-      <p id="apikey-error" class="error small"></p>
-    </div>
-  </section>
-
   <!-- ====================== MAIN MENU ====================== -->
-  <section id="screen-menu" class="screen">
+  <section id="screen-menu" class="screen active">
     <div class="menu-wrap">
       <!-- Fighter profile chip (tap to open dashboard) -->
       <button class="glass profile-chip" id="profile-chip" hidden>
@@ -92,8 +67,6 @@
           <p>Your record, belt rank and the leaderboard. Climb the ranks and challenge friends.</p>
         </button>
       </div>
-
-      <button id="btn-settings" class="btn btn-ghost small">⚙ Change API key</button>
     </div>
   </section>
 
@@ -203,7 +176,18 @@
           <div class="round-timer" id="mp-timer">90</div>
         </div>
         <div class="opponent">
-          <div class="foe" id="mp-foe">🧑</div>
+          <div class="foe-face dmg-0" id="mp-foe">
+            <span class="foe-face-emoji" id="mp-foe-emoji">🧑</span>
+            <img class="foe-face-img" id="mp-foe-img" alt="opponent" hidden />
+            <div class="foe-dmg" aria-hidden="true">
+              <span class="br br-eyeL"></span>
+              <span class="br br-eyeR"></span>
+              <span class="br br-cheek"></span>
+              <span class="br br-brow"></span>
+              <span class="br br-lip"></span>
+              <span class="br-stars">💫</span>
+            </div>
+          </div>
           <div class="telegraph" id="mp-telegraph"></div>
         </div>
         <div class="hud hud-bottom"><div class="coach-bubble" id="mp-coach"></div></div>
@@ -227,11 +211,6 @@
           <button class="btn btn-ghost small" id="dash-edit">Edit</button>
           <button class="btn btn-ghost small" id="dash-logout">Log out</button>
         </div>
-      </div>
-
-      <div class="glass ai-status" id="ai-status">
-        <span id="ai-status-text">AI coach: checking…</span>
-        <button class="btn btn-ghost small" id="ai-status-btn" hidden>Add OpenAI key</button>
       </div>
 
       <div class="dash-stats">
@@ -259,6 +238,14 @@
       <h2 id="onboard-title">Name your fighter</h2>
       <p class="muted small" id="onboard-sub">One step and you're in. Pick a name and a fighter emoji — your record and rank save automatically.</p>
       <input id="onboard-name" class="input" maxlength="18" placeholder="Fighter name" />
+      <div class="face-row">
+        <div class="face-thumb" id="onboard-face-thumb"><span id="onboard-face-emoji">🥊</span><img id="onboard-face-img" alt="your face" hidden /></div>
+        <div class="face-row-text">
+          <b>Your fighter face</b>
+          <span class="muted small">Opponents punch this. Snap it now or skip and use an emoji.</span>
+        </div>
+        <button type="button" id="onboard-face-btn" class="btn btn-ghost small">📸 Add face</button>
+      </div>
       <div class="avatar-grid" id="onboard-avatars"></div>
       <button id="onboard-save" class="btn btn-primary btn-block">Enter the ring 🥊</button>
     </div>
@@ -276,17 +263,39 @@
     </div>
   </div>
 
+  <!-- ====================== FACE CAPTURE MODAL ====================== -->
+  <div class="modal-backdrop" id="facecap" hidden>
+    <div class="glass card card-narrow facecap-card">
+      <h2 id="facecap-title">Add your fighter face</h2>
+      <p class="muted small">Look at the camera — we snap your face automatically. This becomes the head your opponents punch.</p>
+      <div class="facecap-stage">
+        <video id="facecap-video" playsinline muted autoplay webkit-playsinline></video>
+        <canvas id="facecap-canvas" hidden></canvas>
+        <img id="facecap-preview" alt="your face" hidden />
+        <div class="facecap-ring" id="facecap-ring"></div>
+        <div class="facecap-hint" id="facecap-hint">Starting camera…</div>
+      </div>
+      <div class="facecap-actions">
+        <button id="facecap-shoot" class="btn btn-primary btn-block">📸 Capture</button>
+        <button id="facecap-use" class="btn btn-primary btn-block" hidden>Use this face ✓</button>
+        <button id="facecap-retake" class="btn btn-ghost btn-block" hidden>Retake</button>
+        <button id="facecap-skip" class="btn btn-ghost btn-block">Skip</button>
+      </div>
+    </div>
+  </div>
+
   <!-- App modules (?v bumped on each deploy so browsers always load the latest) -->
-  <script src="js/music.js?v=24"></script>
-  <script src="js/db.js?v=24"></script>
-  <script src="js/fightclub.js?v=24"></script>
-  <script src="js/config.js?v=24"></script>
-  <script src="js/pose.js?v=24"></script>
-  <script src="js/gestures.js?v=24"></script>
-  <script src="js/coach.js?v=24"></script>
-  <script src="js/training.js?v=24"></script>
-  <script src="js/game.js?v=24"></script>
-  <script src="js/multiplayer.js?v=24"></script>
-  <script src="js/main.js?v=24"></script>
+  <script src="js/music.js?v=25"></script>
+  <script src="js/db.js?v=25"></script>
+  <script src="js/fightclub.js?v=25"></script>
+  <script src="js/config.js?v=25"></script>
+  <script src="js/pose.js?v=25"></script>
+  <script src="js/face.js?v=25"></script>
+  <script src="js/gestures.js?v=25"></script>
+  <script src="js/coach.js?v=25"></script>
+  <script src="js/training.js?v=25"></script>
+  <script src="js/game.js?v=25"></script>
+  <script src="js/multiplayer.js?v=25"></script>
+  <script src="js/main.js?v=25"></script>
 </body>
 </html>

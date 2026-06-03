@@ -6,7 +6,6 @@
  */
 (function () {
   const screens = {
-    apikey: document.getElementById("screen-apikey"),
     menu: document.getElementById("screen-menu"),
     training: document.getElementById("screen-training"),
     single: document.getElementById("screen-single"),
@@ -14,7 +13,7 @@
     dashboard: document.getElementById("screen-dashboard"),
   };
 
-  let current = "apikey";
+  let current = "menu";
   let pendingResult = null; // a finished match awaiting a freshly-created profile
 
   function show(name) {
@@ -32,6 +31,7 @@
 
   SB.goMenu = () => show("menu");
   if (SB.Music) SB.Music.init();
+  if (SB.Face) SB.Face.init();
   SB.Profile.load();
 
   window.addEventListener("pagehide", () => {
@@ -65,7 +65,6 @@
     document.getElementById("st-kos").textContent = p.kos || 0;
     document.getElementById("st-streak").textContent = p.streak || 0;
     document.getElementById("st-rating").textContent = SB.Profile.rating(p);
-    renderAiStatus();
 
     const list = document.getElementById("lb-list");
     list.innerHTML = '<p class="muted small">Loading…</p>';
@@ -95,27 +94,28 @@
     show("menu");
   };
 
-  // AI coach status (real OpenAI only runs when a key is present).
-  function renderAiStatus() {
-    const box = document.getElementById("ai-status");
-    const txt = document.getElementById("ai-status-text");
-    const btn = document.getElementById("ai-status-btn");
-    if (!box) return;
-    if (SB.config.hasKey()) {
-      box.className = "glass ai-status on";
-      txt.textContent = "🧠 AI coach: ACTIVE — live OpenAI commentary during fights.";
-      btn.hidden = true;
-    } else {
-      box.className = "glass ai-status off";
-      txt.textContent = "🧠 AI coach: OFF — add an OpenAI key for live AI commentary.";
-      btn.hidden = false;
-    }
-    btn.onclick = () => { keyInput.value = SB.config.getKey(); show("apikey"); };
-  }
-
   // ---------- onboarding ----------
   const onboard = document.getElementById("onboard");
   let selAvatar = SB.AVATARS[0];
+  let selFace = null;
+
+  function renderFaceThumb() {
+    const img = document.getElementById("onboard-face-img");
+    const emoji = document.getElementById("onboard-face-emoji");
+    const btn = document.getElementById("onboard-face-btn");
+    if (selFace) {
+      img.src = selFace; img.hidden = false; emoji.hidden = true;
+      btn.textContent = "🔄 Retake";
+    } else {
+      img.hidden = true; emoji.hidden = false;
+      btn.textContent = "📸 Add face";
+    }
+  }
+  document.getElementById("onboard-face-btn").onclick = () => {
+    if (!SB.Face) return;
+    SB.Face.open((dataUrl) => { if (dataUrl) selFace = dataUrl; renderFaceThumb(); }, selFace ? "Retake your face" : "Add your fighter face");
+  };
+
   function buildAvatars() {
     const grid = document.getElementById("onboard-avatars");
     grid.innerHTML = "";
@@ -130,15 +130,17 @@
   function openOnboard(firstTime) {
     const p = SB.Profile.current;
     selAvatar = p ? p.avatar : SB.AVATARS[Math.floor(Math.random() * SB.AVATARS.length)];
+    selFace = p ? (p.face || null) : null;
     document.getElementById("onboard-name").value = p ? p.name : SB.Profile.randomName();
     document.getElementById("onboard-title").textContent = p ? "Edit your fighter" : "Name your fighter";
     buildAvatars();
+    renderFaceThumb();
     onboard.hidden = false;
   }
   document.getElementById("onboard-save").onclick = () => {
     const name = document.getElementById("onboard-name").value.trim() || SB.Profile.randomName();
-    if (SB.Profile.current) SB.Profile.update({ name: name.slice(0, 18), avatar: selAvatar });
-    else SB.Profile.create(name, selAvatar);
+    if (SB.Profile.current) SB.Profile.update({ name: name.slice(0, 18), avatar: selAvatar, face: selFace });
+    else { SB.Profile.create(name, selAvatar); SB.Profile.update({ face: selFace }); }
     onboard.hidden = true;
     renderChip();
     if (pendingResult) { SB.Arena.recordResult(pendingResult); const r = pendingResult; pendingResult = null; maybeShare(r); }
@@ -184,28 +186,12 @@
     maybeShare(result);
   };
 
-  // ---------- API key gate ----------
-  const keyInput = document.getElementById("apikey-input");
-  const skip = document.getElementById("apikey-skip");
-  const errEl = document.getElementById("apikey-error");
-
   function enterApp() {
     const params = new URLSearchParams(location.search);
     const room = params.get("room");
-    const fmt = params.get("fmt");
-    if (room && fmt && fmt !== "1v1") { show("multiplayer"); SB.TeamMP.join(room, fmt); }
-    else if (room) { show("multiplayer"); SB.MP.initLobby(); SB.MP.joinMatch(room); }
+    if (room) { show("multiplayer"); SB.MP.initLobby(); SB.MP.joinMatch(room); }
     else { show("menu"); showIncomingChallenge(); }
   }
-
-  document.getElementById("apikey-save").onclick = () => {
-    errEl.textContent = "";
-    if (skip.checked) { SB.config.setKey(""); enterApp(); return; }
-    const k = keyInput.value.trim();
-    if (!k || !k.startsWith("sk-")) { errEl.textContent = "Enter a valid OpenAI key (starts with sk-), or tick Skip."; return; }
-    SB.config.setKey(k);
-    enterApp();
-  };
 
   // ---------- menu ----------
   document.querySelectorAll(".mode-card[data-mode]").forEach((card) => {
@@ -218,7 +204,6 @@
     };
   });
 
-  document.getElementById("btn-settings").onclick = () => { keyInput.value = SB.config.getKey(); show("apikey"); };
   document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => show("menu")));
 
   // Incoming challenge banner (viral loop entry point).
@@ -232,7 +217,5 @@
   function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 
   // ---------- boot ----------
-  const params = new URLSearchParams(location.search);
-  if (params.get("room")) { enterApp(); }
-  else if (SB.config.hasKey()) { keyInput.value = SB.config.getKey(); }
+  enterApp();
 })();

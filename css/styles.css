@@ -365,3 +365,78 @@ h3 { font-size: 17px; }
   .btn-back { padding: 7px 11px; font-size: 12px; }
   .share-link-row { flex-direction: column; }
 }
+
+/* ===================== Multiplayer opponent: real face + damage ===================== */
+.foe-face {
+  position: relative; align-self: center;
+  height: 62%; aspect-ratio: 3 / 4; max-width: 60%;
+  border-radius: 22px; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 38%, rgba(255,255,255,.07), rgba(0,0,0,.3));
+  border: 2px solid rgba(255,255,255,.14);
+  box-shadow: 0 18px 50px rgba(0,0,0,.6);
+  transition: transform .12s;
+  --dmg: 0;
+}
+.foe-face-emoji { font-size: 120px; filter: drop-shadow(0 8px 20px rgba(0,0,0,.5)); }
+.foe-face-img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  border-radius: 20px; transition: filter .25s;
+}
+.foe-face.has-face .foe-face-img {
+  filter: saturate(calc(1 - var(--dmg) * 0.35)) brightness(calc(1 - var(--dmg) * 0.16)) contrast(calc(1 + var(--dmg) * 0.12));
+}
+.foe-face.hit { animation: shake .3s; }
+
+/* Beat-up overlay: red film that grows with damage, plus bruise marks per stage. */
+.foe-dmg { position: absolute; inset: 0; border-radius: 20px; pointer-events: none; }
+.foe-dmg::before {
+  content: ""; position: absolute; inset: 0; border-radius: 20px;
+  background: radial-gradient(circle at 50% 62%, rgba(190,0,0,0), rgba(150,0,0,.6));
+  opacity: calc(var(--dmg) * 0.95); transition: opacity .25s;
+}
+.br { position: absolute; opacity: 0; transition: opacity .3s; filter: blur(2px); border-radius: 50%; }
+.br-eyeL { left: 22%; top: 33%; width: 20%; height: 13%; background: radial-gradient(circle, rgba(95,30,125,.9), transparent 70%); }
+.br-eyeR { right: 22%; top: 33%; width: 18%; height: 12%; background: radial-gradient(circle, rgba(40,45,130,.85), transparent 70%); }
+.br-cheek { left: 28%; top: 56%; width: 18%; height: 9%; background: radial-gradient(circle, rgba(160,20,20,.85), transparent 70%); transform: rotate(-18deg); }
+.br-brow { right: 28%; top: 23%; width: 16%; height: 6%; background: rgba(160,25,25,.9); transform: rotate(12deg); border-radius: 40%; filter: blur(.6px); }
+.br-lip { left: 42%; bottom: 15%; width: 18%; height: 7%; background: radial-gradient(circle, rgba(125,10,10,.9), transparent 70%); }
+.br-stars { position: absolute; top: 4%; left: 50%; transform: translateX(-50%); font-size: 44px; opacity: 0; }
+
+.dmg-1 .br-eyeL { opacity: .9; }
+.dmg-2 .br-eyeL, .dmg-2 .br-cheek { opacity: .95; }
+.dmg-3 .br-eyeL, .dmg-3 .br-cheek, .dmg-3 .br-eyeR, .dmg-3 .br-brow { opacity: 1; }
+.dmg-4 .br, .dmg-5 .br { opacity: 1; }
+.dmg-5 .br-stars { opacity: 1; animation: spinStars 1.2s linear infinite; }
+@keyframes spinStars { from { transform: translateX(-50%) rotate(0); } to { transform: translateX(-50%) rotate(360deg); } }
+
+/* ===================== Onboarding face row ===================== */
+.face-row { display: flex; align-items: center; gap: 12px; width: 100%; margin: 8px 0 4px; text-align: left; }
+.face-thumb {
+  width: 54px; height: 54px; flex: 0 0 auto; border-radius: 50%; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; font-size: 26px;
+  background: var(--glass); border: 1px solid var(--glass-border);
+}
+.face-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.face-row-text { display: flex; flex-direction: column; flex: 1; gap: 2px; }
+.face-row-text b { font-size: 14px; }
+
+/* ===================== Face capture modal ===================== */
+.facecap-card { max-width: 420px; }
+.facecap-stage {
+  position: relative; width: 260px; height: 260px; margin: 16px auto;
+  border-radius: 50%; overflow: hidden; background: #000; border: 3px solid var(--glass-border);
+}
+#facecap-video, #facecap-preview { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+#facecap-video { transform: scaleX(-1); }     /* mirror live preview */
+#facecap-preview { transform: none; }          /* capture is already mirrored */
+.facecap-ring { position: absolute; inset: 9%; border-radius: 50%; border: 3px dashed rgba(255,255,255,.55); pointer-events: none; transition: border-color .2s, border-style .2s; }
+.facecap-ring.locked { border-color: var(--green); border-style: solid; box-shadow: 0 0 24px rgba(43,214,106,.5); }
+.facecap-hint { position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 13px; color: #fff; text-shadow: 0 1px 5px #000; }
+.facecap-actions { display: flex; flex-direction: column; gap: 8px; }
+
+@media (max-width: 640px) {
+  .foe-face { height: 50%; max-width: 78%; }
+  .foe-face-emoji { font-size: 88px; }
+  .facecap-stage { width: 220px; height: 220px; }
+}

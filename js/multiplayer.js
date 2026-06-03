@@ -27,7 +27,7 @@ SB.MP = {
 
   client: null, isHost: false, roomId: "", topic: "", format: "1v1",
   myId: null, myTeam: null, brokerIdx: 0,
-  players: {}, defendedUntil: {},
+  players: {}, defendedUntil: {}, faces: {},
   teamHP: { A: 100, B: 100 }, teamMax: { A: 100, B: 100 },
   pose: null, gestures: null, active: false, timeLeft: 90, tickId: null,
   _gotLobby: false,
@@ -78,6 +78,8 @@ SB.MP = {
     this.players = {};
     this.players[this.myId] = { id: this.myId, name: this._myName(), avatar: this._myAvatar(), team: "A", ready: false };
     this.myTeam = "A";
+    this.faces = {};
+    if (this._myFace()) this.faces[this.myId] = this._myFace();
     this._link = location.origin + location.pathname + "?room=" + this.roomId + "&fmt=" + this.format;
     this._waHref = "https://wa.me/?text=" + encodeURIComponent(`Join my ${this.format} fight on Fight Club 🥊 Tap to play: ` + this._link);
 
@@ -95,20 +97,22 @@ SB.MP = {
     this.topic = "fightclub/" + this.roomId;
     this.myId = this._rid("g");
     this._gotLobby = false;
+    this.faces = {};
+    if (this._myFace()) this.faces[this.myId] = this._myFace();
 
     this.choices.hidden = true;
     this.joiningCard.hidden = false;
     this._setJoinStatus("Connecting…");
 
     this._connect(() => {
-      this._publish({ t: "join", name: this._myName(), avatar: this._myAvatar() });
+      this._publish({ t: "join", name: this._myName(), avatar: this._myAvatar(), face: this._myFace() });
       // re-announce until the host replies with the lobby (covers late host / lost msg)
       clearInterval(this._joinPing);
       let tries = 0;
       this._joinPing = setInterval(() => {
         if (this._gotLobby || tries++ > 40) { clearInterval(this._joinPing); return; }
         this._setJoinStatus(`Connecting…${tries > 1 ? " (" + tries + ")" : ""}`);
-        this._publish({ t: "join", name: this._myName(), avatar: this._myAvatar() });
+        this._publish({ t: "join", name: this._myName(), avatar: this._myAvatar(), face: this._myFace() });
       }, 1500);
     });
   },
@@ -139,7 +143,6 @@ SB.MP = {
     this.client.on("connect", () => {
       opened = true; clearTimeout(failTimer);
       this.client.subscribe(this.topic, { qos: 0 }, () => onReady && onReady());
-      if (this.isHost && SB.config.hasKey()) this._publish({ t: "key", key: SB.config.getKey() });
     });
     this.client.on("message", (t, payload) => {
       try {
@@ -182,8 +185,9 @@ SB.MP = {
           this.players[m.from].name = (m.name || "Fighter").slice(0, 18);
           this.players[m.from].avatar = m.avatar || "🥊";
         }
-        if (SB.config.hasKey()) this._publish({ t: "key", key: SB.config.getKey() });
+        if (m.face) this.faces[m.from] = m.face;
         this._broadcastLobby();
+        this._publish({ t: "faces", faces: this.faces }); // share everyone's faces with the room
       } else if (m.t === "ready") {
         if (this.players[m.from]) this.players[m.from].ready = true;
         this._broadcastLobby(); this._hostMaybeStart();
@@ -197,7 +201,7 @@ SB.MP = {
       }
     } else {
       // guest only acts on host-origin messages
-      if (m.t === "key") { if (!SB.config.hasKey()) SB.config.setSessionKey(m.key); return; }
+      if (m.t === "faces") { Object.assign(this.faces, m.faces || {}); this._renderFoeFace(); return; }
       if (m.t === "lobby") {
         this._gotLobby = true; clearInterval(this._joinPing);
         this.players = m.players; this.format = m.format;
@@ -303,6 +307,7 @@ SB.MP = {
     this.active = true;
     this.timeLeft = 90;
     this._labelBars();
+    this._renderFoeFace();
     if (this.isHost) {
       this._publish({ t: "hp", hp: this.teamHP, max: this.teamMax });
       this._renderHP();
@@ -375,6 +380,8 @@ SB.MP = {
     this.canvas = document.getElementById("mp-canvas");
     this.coachEl = document.getElementById("mp-coach");
     this.foeEl = document.getElementById("mp-foe");
+    this.foeImg = document.getElementById("mp-foe-img");
+    this.foeEmoji = document.getElementById("mp-foe-emoji");
     this.telEl = document.getElementById("mp-telegraph");
     this.overlay = document.getElementById("mp-overlay");
     this.stage = this.video.parentElement;
@@ -397,6 +404,41 @@ SB.MP = {
     document.getElementById("mp-hp-you").style.width = (100 * this.teamHP[mine] / this.teamMax[mine]) + "%";
     document.getElementById("mp-hp-foe").style.width = (100 * this.teamHP[foe] / this.teamMax[foe]) + "%";
     document.getElementById("mp-timer").textContent = Math.max(0, this.timeLeft);
+    this._renderFoeDamage();
+  },
+
+  // The opponent head gets progressively more beaten as their team HP drops.
+  _renderFoeDamage() {
+    if (!this.foeEl) return;
+    const mine = this.myTeam || "A", foe = mine === "A" ? "B" : "A";
+    const pct = Math.max(0, Math.min(1, this.teamHP[foe] / this.teamMax[foe]));
+    const dmg = 1 - pct; // 0 = fresh, 1 = knocked out
+    const stage = pct <= 0 ? 5 : dmg < 0.2 ? 0 : dmg < 0.4 ? 1 : dmg < 0.6 ? 2 : dmg < 0.8 ? 3 : 4;
+    this.foeEl.style.setProperty("--dmg", dmg.toFixed(2));
+    for (let i = 0; i <= 5; i++) this.foeEl.classList.remove("dmg-" + i);
+    this.foeEl.classList.add("dmg-" + stage);
+  },
+
+  // Find the opponent we display (first enemy fighter) and show their real face.
+  _foeEnemy() {
+    const mine = this.myTeam || "A";
+    return Object.values(this.players).find((p) => p.team !== mine) || null;
+  },
+
+  _renderFoeFace() {
+    if (!this.foeEl) return;
+    const enemy = this._foeEnemy();
+    const face = enemy ? this.faces[enemy.id] : null;
+    if (face && this.foeImg) {
+      this.foeImg.src = face;
+      this.foeImg.hidden = false;
+      if (this.foeEmoji) this.foeEmoji.hidden = true;
+      this.foeEl.classList.add("has-face");
+    } else {
+      if (this.foeImg) this.foeImg.hidden = true;
+      if (this.foeEmoji) { this.foeEmoji.hidden = false; this.foeEmoji.textContent = (enemy && enemy.avatar) || "🧑"; }
+      this.foeEl.classList.remove("has-face");
+    }
   },
 
   _flashFoe() { if (this.foeEl) { this.foeEl.classList.add("hit"); setTimeout(() => this.foeEl.classList.remove("hit"), 250); } },
@@ -431,6 +473,7 @@ SB.MP = {
   _rid(prefix) { return (prefix || "") + Math.random().toString(36).slice(2, 10); },
   _myName() { return SB.Profile && SB.Profile.current ? SB.Profile.current.name : "Fighter"; },
   _myAvatar() { return SB.Profile && SB.Profile.current ? SB.Profile.current.avatar : "🥊"; },
+  _myFace() { return SB.Profile && SB.Profile.current ? (SB.Profile.current.face || null) : null; },
 
   stop() {
     this.active = false; this._endedByLeave = false; this._gotLobby = false;
