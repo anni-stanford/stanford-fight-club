@@ -268,6 +268,29 @@ h3 { font-size: 17px; }
 .end-actions { display: flex; gap: 14px; margin-top: 6px; flex-wrap: wrap; justify-content: center; }
 .end-actions .btn { font-size: 16px; padding: 13px 26px; }
 .overlay-msg { overflow-y: auto; }
+
+/* Format chooser */
+.format-grid { display: flex; gap: 12px; margin: 8px 0; flex-wrap: wrap; justify-content: center; }
+.format-grid .fmt {
+  display: flex; flex-direction: column; gap: 4px; padding: 18px 22px; cursor: pointer;
+  color: var(--text); border-radius: 16px; min-width: 110px; transition: transform .12s, border-color .2s;
+}
+.format-grid .fmt:hover { transform: translateY(-3px); border-color: var(--accent); }
+.format-grid .fmt b { font-size: 22px; }
+.format-grid .fmt span { font-size: 12px; color: var(--muted); }
+
+/* Team lobby */
+.lobby-teams { display: flex; align-items: center; gap: 16px; margin: 10px 0; flex-wrap: wrap; justify-content: center; }
+.lobby-team { display: flex; flex-direction: column; gap: 8px; min-width: 150px; }
+.lobby-team h4 { font-size: 14px; color: var(--muted); text-align: center; }
+.lobby-vs { font-size: 22px; font-weight: 700; color: var(--accent2); }
+.slot {
+  padding: 10px 14px; border-radius: 12px; border: 1px solid var(--glass-border);
+  background: rgba(255,255,255,.04); display: flex; align-items: center; gap: 8px; font-size: 14px;
+  min-width: 140px;
+}
+.slot.empty { color: var(--muted); font-style: italic; border-style: dashed; justify-content: center; }
+.slot.me { border-color: var(--accent); background: rgba(255,59,59,.1); }
 .match-share { width: min(520px, 92%); display: flex; flex-direction: column; gap: 12px; align-items: stretch; text-align: center; }
 .match-share .share-link-row { display: flex; gap: 10px; }
 .match-share .share-link-row .input { margin-top: 0; flex: 1; min-width: 0; }

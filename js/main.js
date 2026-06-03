@@ -192,7 +192,9 @@
   function enterApp() {
     const params = new URLSearchParams(location.search);
     const room = params.get("room");
-    if (room) { show("multiplayer"); SB.MP.initLobby(); SB.MP.joinMatch(room); }
+    const fmt = params.get("fmt");
+    if (room && fmt && fmt !== "1v1") { show("multiplayer"); SB.TeamMP.join(room, fmt); }
+    else if (room) { show("multiplayer"); SB.MP.initLobby(); SB.MP.joinMatch(room); }
     else { show("menu"); showIncomingChallenge(); }
   }
 
