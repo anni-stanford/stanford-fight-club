@@ -306,9 +306,9 @@ SB.MP = {
     try {
       await this.pose.start((kp) => {
         this.gestures.feed(kp);
-        // Auto-snap our own face from the live feed so the opponent sees a real
-        // photo (not an emoji). Only needed if we don't already have one.
-        if (!this.faces[this.myId] && faceTries < 150 && SB.Face && SB.Face.grabFace) {
+        // Auto-snap a TIGHT head shot from the live feed so the opponent sees a
+        // real cropped face (not an emoji, and not an old loose/torso crop).
+        if (this._needFreshFace() && faceTries < 150 && SB.Face && SB.Face.grabFace) {
           faceTries++;
           const url = SB.Face.grabFace(this.video, kp);
           if (url) this._sendMyFace(url);
@@ -433,11 +433,21 @@ SB.MP = {
     this.foeEl.classList.add("dmg-" + stage);
   },
 
+  // FACE_VERSION bumps whenever the crop logic changes, so old loose crops get
+  // re-captured tightly the next time someone plays a match.
+  FACE_VERSION: 2,
+
+  _needFreshFace() {
+    if (!this.faces[this.myId]) return true;
+    const p = SB.Profile && SB.Profile.current;
+    return !(p && (p.faceV || 0) >= this.FACE_VERSION);
+  },
+
   // Broadcast our freshly-captured face so opponents see a real photo.
   _sendMyFace(url) {
     if (!url) return;
     this.faces[this.myId] = url;
-    try { if (SB.Profile && SB.Profile.current) SB.Profile.update({ face: url }); } catch (e) {}
+    try { if (SB.Profile && SB.Profile.current) SB.Profile.update({ face: url, faceV: this.FACE_VERSION }); } catch (e) {}
     if (this.isHost) this._publish({ t: "faces", faces: this.faces });
     else this._publish({ t: "myface", face: url });
     this._renderFoeFace();

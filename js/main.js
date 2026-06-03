@@ -98,6 +98,7 @@
   const onboard = document.getElementById("onboard");
   let selAvatar = SB.AVATARS[0];
   let selFace = null;
+  let faceFresh = false; // true when captured this session with the current (tight) crop
 
   function renderFaceThumb() {
     const img = document.getElementById("onboard-face-img");
@@ -113,7 +114,7 @@
   }
   document.getElementById("onboard-face-btn").onclick = () => {
     if (!SB.Face) return;
-    SB.Face.open((dataUrl) => { if (dataUrl) selFace = dataUrl; renderFaceThumb(); }, selFace ? "Retake your face" : "Add your fighter face");
+    SB.Face.open((dataUrl) => { if (dataUrl) { selFace = dataUrl; faceFresh = true; } renderFaceThumb(); }, selFace ? "Retake your face" : "Add your fighter face");
   };
 
   function buildAvatars() {
@@ -131,6 +132,7 @@
     const p = SB.Profile.current;
     selAvatar = p ? p.avatar : SB.AVATARS[Math.floor(Math.random() * SB.AVATARS.length)];
     selFace = p ? (p.face || null) : null;
+    faceFresh = false;
     document.getElementById("onboard-name").value = p ? p.name : SB.Profile.randomName();
     document.getElementById("onboard-title").textContent = p ? "Edit your fighter" : "Name your fighter";
     buildAvatars();
@@ -139,8 +141,10 @@
   }
   document.getElementById("onboard-save").onclick = () => {
     const name = document.getElementById("onboard-name").value.trim() || SB.Profile.randomName();
-    if (SB.Profile.current) SB.Profile.update({ name: name.slice(0, 18), avatar: selAvatar, face: selFace });
-    else { SB.Profile.create(name, selAvatar); SB.Profile.update({ face: selFace }); }
+    const freshV = (SB.MP && SB.MP.FACE_VERSION) || 2;
+    const faceV = faceFresh ? freshV : (SB.Profile.current ? (SB.Profile.current.faceV || 0) : 0);
+    if (SB.Profile.current) SB.Profile.update({ name: name.slice(0, 18), avatar: selAvatar, face: selFace, faceV });
+    else { SB.Profile.create(name, selAvatar); SB.Profile.update({ face: selFace, faceV }); }
     onboard.hidden = true;
     renderChip();
     if (pendingResult) { SB.Arena.recordResult(pendingResult); const r = pendingResult; pendingResult = null; maybeShare(r); }

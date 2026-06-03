@@ -130,14 +130,19 @@ SB.Face = {
     let cx = 0, cy = 0;
     pts.forEach((p) => { cx += p.x; cy += p.y; });
     cx /= pts.length; cy /= pts.length;
-    let span = 60;
+    // Estimate head width from ear-to-ear (or eye spacing as a fallback).
+    let headW = 70;
     if (by.left_ear && by.right_ear && by.left_ear.score > 0.3 && by.right_ear.score > 0.3) {
-      span = Math.hypot(by.left_ear.x - by.right_ear.x, by.left_ear.y - by.right_ear.y);
+      headW = Math.hypot(by.left_ear.x - by.right_ear.x, by.left_ear.y - by.right_ear.y);
     } else if (by.left_eye && by.right_eye) {
-      span = Math.hypot(by.left_eye.x - by.right_eye.x, by.left_eye.y - by.right_eye.y) * 2.4;
+      headW = Math.hypot(by.left_eye.x - by.right_eye.x, by.left_eye.y - by.right_eye.y) * 2.2;
     }
-    const half = Math.max(50, span * 1.5);
-    return { cx: nose.x || cx, cy: (nose.y || cy) - half * 0.12, half };
+    // Tight head crop: a square ~1.8x the head width (covers hair + chin, not the torso).
+    const half = Math.max(45, headW * 0.92);
+    const ncx = (by.nose && by.nose.score > 0.3) ? by.nose.x : cx;
+    const ncy = (by.nose && by.nose.score > 0.3) ? by.nose.y : cy;
+    // Nose sits slightly below head centre — shift up a touch to keep hair in frame.
+    return { cx: ncx, cy: ncy - half * 0.15, half };
   },
 
   // Crop + mirror a square face from any <video> using a face box. Returns a JPEG data URL.
