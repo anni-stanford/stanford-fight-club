@@ -43,7 +43,7 @@ webcam → MoveNet pose (TensorFlow.js, on-device)
 - **Pose** — `@tensorflow-models/pose-detection` MoveNet *SinglePose Lightning* for fast, real-time skeletons on a normal laptop. (`js/pose.js`)
 - **Gestures** — depth-free heuristics on wrist velocity, arm extension (in shoulder-widths), and head offset, with per-move cooldowns. Tuned for *category + timing*, the part that's robust on a webcam. (`js/gestures.js`)
 - **Single player** — the AI **telegraphs** an attack and gives you a reaction beat; timing windows hide webcam/processing latency. (`js/game.js`)
-- **Multiplayer** — **WebRTC via PeerJS**. Each side runs its own camera + detection locally and sends **only tiny move/state messages** over a data channel — **no video is ever transmitted**, which keeps it private, low-bandwidth, and avoids syncing two video streams. The host's peer id is the room code; a `?room=CODE` link is forwardable over WhatsApp. (`js/multiplayer.js`)
+- **Multiplayer (1v1 / 1v2 / 2v2)** — instead of direct browser-to-browser P2P (which breaks across networks/countries and would need a TURN relay), every player connects **outbound** to a **free public MQTT-over-WebSocket broker** and they exchange **only tiny JSON move/state messages** on a shared room topic. Outbound connections always succeed (like loading any website), so it works **worldwide with zero setup — no TURN, no accounts, no server to host**. Each side runs its own camera + detection locally; **no video is ever transmitted**. The host acts as referee (authoritative HP/damage); a `?room=CODE&fmt=...` link is forwardable over WhatsApp. (`js/multiplayer.js`)
 - **Coach** — OpenAI Chat Completions (`gpt-4o-mini`), throttled, always with a local fallback line so the game is fully playable with no key/network. Only a short text summary is sent — never video or pose data. (`js/coach.js`)
 - **Privacy** — the OpenAI key is stored only in your browser's `localStorage` and is sent only to OpenAI.
 
@@ -62,14 +62,14 @@ npm start          # serves on http://localhost:7788  (uses python3 -m http.serv
 
 Open `http://localhost:7788`, allow camera access, (optionally) paste an OpenAI key, and pick a mode.
 
-**Multiplayer tip:** create a match on one laptop, copy the link (or hit *Share on WhatsApp*), and open it on a second laptop. Both need their own webcam. For two devices on different networks, host over HTTPS (e.g. GitHub Pages / any static host) so WebRTC can connect.
+**Multiplayer tip:** create a match on one device, copy the link (or hit *Share on WhatsApp*), and open it on another. Both need their own webcam. Because moves are relayed through a public MQTT broker over outbound WebSocket connections, it works across **different networks/countries with no extra setup** — just host the page over HTTPS (e.g. GitHub Pages) so the browser allows webcam access.
 
 ---
 
 ## Stack
 
 - TensorFlow.js + MoveNet (pose estimation)
-- PeerJS / WebRTC (peer-to-peer multiplayer)
+- MQTT over WebSocket via a free public broker (zero-setup, cross-network multiplayer message relay)
 - OpenAI API (optional coach commentary)
 - Vanilla HTML/CSS/JS — zero build tooling, fully reproducible
 

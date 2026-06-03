@@ -1,67 +1,36 @@
 /*
- * multiplayer.js — team boxing over WebRTC (1v1 / 1v2 / 2v2).
+ * multiplayer.js — team boxing (1v1 / 1v2 / 2v2) over a public message relay.
  *
- * Topology: STAR with the host as referee. Every player connects only to the
- * host (PeerJS). The host is authoritative: it tracks team health, applies
- * damage, and broadcasts state to everyone. This scales cleanly from 2 to 4
- * players without an N×N mesh. Each player still runs their OWN webcam + pose
- * detection locally and sends only tiny move messages — no video is transmitted.
+ * WHY THIS WORKS WORLDWIDE WITH NO SETUP:
+ * Instead of connecting browsers directly (peer-to-peer, which breaks across
+ * different networks/countries and needs a TURN server), every player connects
+ * OUTBOUND to a free public MQTT-over-WebSocket broker and they exchange tiny
+ * JSON move-messages on a shared room topic. Outbound connections always
+ * succeed (like loading any website), so there's no NAT/firewall problem, no
+ * TURN, no accounts, nothing to host. The game only sends a few bytes per
+ * punch (never video), so a public broker handles it comfortably.
  *
- * Flow: Create → pick format → share ONE link → players tap in → they fill team
- * slots in a lobby → everyone readies → 3-2-1 → fight. Team HP is shared; your
- * punches damage the enemy team, your slips/blocks protect yours.
- *
- * NOTE: 3–4 player team modes need testing across that many real devices.
+ * Topology: the host is the referee — authoritative for team HP, damage and
+ * round flow. Guests publish their moves; the host computes and broadcasts
+ * state to the room topic.
  */
 window.SB = window.SB || {};
 
 SB.MP = {
-  /*
-   * Cross-network play needs a TURN relay (same-WiFi works without one). The free
-   * public relays below are best-effort and often rate-limited, so games between
-   * different networks/countries can fail. For reliable worldwide play, paste your
-   * OWN free TURN credentials into MY_TURN.
-   *
-   * ── FREE TURN in ~5 min (50 GB/mo, no credit card) ──────────────────────
-   *   1. Sign up at https://dashboard.metered.ca  → "TURN Servers".
-   *   2. It shows an iceServers array (turn: URLs + username + credential).
-   *   3. Paste those objects into MY_TURN below, commit & push. Done.
-   * ─────────────────────────────────────────────────────────────────────────
-   */
-  MY_TURN: [
-    // { urls: "turn:standard.relay.metered.ca:80", username: "PASTE", credential: "PASTE" },
-    // { urls: "turn:standard.relay.metered.ca:443", username: "PASTE", credential: "PASTE" },
-    // { urls: "turn:standard.relay.metered.ca:443?transport=tcp", username: "PASTE", credential: "PASTE" },
+  // Free public MQTT brokers (no account). We try them in order.
+  BROKERS: [
+    "wss://broker.emqx.io:8084/mqtt",
+    "wss://broker.hivemq.com:8884/mqtt",
   ],
-
-  _peerOpts() {
-    return {
-      config: {
-        iceServers: [
-          { urls: "stun:stun.l.google.com:19302" },
-          { urls: "stun:stun1.l.google.com:19302" },
-          { urls: "stun:global.stun.twilio.com:3478" },
-          // best-effort free relays (may be rate-limited):
-          { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
-          { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
-          { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
-          ...this.MY_TURN,
-        ],
-      },
-    };
-  },
 
   FORMATS: { "1v1": { A: 1, B: 1 }, "1v2": { A: 1, B: 2 }, "2v2": { A: 2, B: 2 } },
 
-  // session state
-  peer: null, isHost: false, roomCode: "", format: "1v1",
-  conns: {},            // host: peerId -> DataConnection
-  conn: null,           // guest: connection to host
-  players: {},          // host-authoritative: peerId -> {id,name,avatar,team,ready}
-  myId: null, myTeam: null,
+  client: null, isHost: false, roomId: "", topic: "", format: "1v1",
+  myId: null, myTeam: null, brokerIdx: 0,
+  players: {}, defendedUntil: {},
   teamHP: { A: 100, B: 100 }, teamMax: { A: 100, B: 100 },
-  defendedUntil: {},    // host: peerId -> ts
   pose: null, gestures: null, active: false, timeLeft: 90, tickId: null,
+  _gotLobby: false,
 
   // ---------- lobby entry ----------
   initLobby() {
@@ -70,23 +39,13 @@ SB.MP = {
     this.choices = document.getElementById("mp-choices");
     this.joiningCard = document.getElementById("mp-joining");
     this.joinStatusEl = document.getElementById("mp-join-status");
-    this._joinAttempts = 0;
 
     document.getElementById("mp-create").onclick = () => this.chooseFormat();
     document.getElementById("mp-join").onclick = () => {
       const code = document.getElementById("mp-join-code").value.trim();
       if (code) this.joinMatch(code);
     };
-    document.getElementById("mp-join-retry").onclick = () => { this._joinAttempts = 0; this._tryConnect(); };
-
-    if (!this._visBound) {
-      this._visBound = true;
-      document.addEventListener("visibilitychange", () => {
-        if (!document.hidden && this.peer && this.peer.disconnected && !this.peer.destroyed) {
-          try { this.peer.reconnect(); } catch (e) {}
-        }
-      });
-    }
+    document.getElementById("mp-join-retry").onclick = () => this._rejoin();
 
     this.lobby.hidden = false;
     this.gameWrap.hidden = true;
@@ -95,7 +54,6 @@ SB.MP = {
     document.getElementById("mp-share").hidden = true;
   },
 
-  // ---------- host: pick format, then create ----------
   chooseFormat() {
     this._enterStage();
     this.overlay.innerHTML =
@@ -107,135 +65,158 @@ SB.MP = {
          <button class="glass fmt" data-fmt="2v2"><b>2 v 2</b><span>Team battle</span></button>
        </div>`;
     this.overlay.classList.add("show");
-    this.overlay.querySelectorAll(".fmt").forEach((b) => {
-      b.onclick = () => this.createMatch(b.dataset.fmt);
-    });
+    this.overlay.querySelectorAll(".fmt").forEach((b) => (b.onclick = () => this.createMatch(b.dataset.fmt)));
   },
 
+  // ---------- host ----------
   createMatch(format) {
     this.isHost = true;
     this.format = format || "1v1";
-    this.conns = {};
+    this.myId = this._rid("h");
+    this.roomId = this._rid("r");
+    this.topic = "fightclub/" + this.roomId;
     this.players = {};
-    this._link = ""; this._waHref = "#";
+    this.players[this.myId] = { id: this.myId, name: this._myName(), avatar: this._myAvatar(), team: "A", ready: false };
+    this.myTeam = "A";
+    this._link = location.origin + location.pathname + "?room=" + this.roomId + "&fmt=" + this.format;
+    this._waHref = "https://wa.me/?text=" + encodeURIComponent(`Join my ${this.format} fight on Fight Club 🥊 Tap to play: ` + this._link);
 
-    this.peer = new Peer(this._peerOpts());
-    this.peer.on("open", (id) => {
-      this.roomCode = id; this.myId = id;
-      // host takes the first slot on Team A
-      this.players[id] = { id, name: this._myName(), avatar: this._myAvatar(), team: "A", ready: false };
-      this.myTeam = "A";
-      this._link = location.origin + location.pathname + "?room=" + encodeURIComponent(id) + "&fmt=" + this.format;
-      this._waHref = "https://wa.me/?text=" + encodeURIComponent(`Join my ${this.format} fight on Fight Club 🥊 Tap to play: ` + this._link);
-      this._showLobby();
-    });
-
-    this.peer.on("connection", (c) => this._onGuest(c));
-    this.peer.on("disconnected", () => { try { this.peer.reconnect(); } catch (e) {} });
-    this.peer.on("error", (e) => { if (e.type === "network" || e.type === "disconnected") { try { this.peer.reconnect(); } catch (_) {} } });
+    this.overlay.innerHTML = `<div style="font-size:34px">Creating match…</div>`;
+    this.overlay.classList.add("show");
+    this._connect(() => this._showLobby());
   },
 
-  _onGuest(c) {
-    c.on("open", () => {
-      // assign to the first team with an open slot
-      const sizes = this.FORMATS[this.format];
-      const countA = Object.values(this.players).filter((p) => p.team === "A").length;
-      const team = countA < sizes.A ? "A" : "B";
-      this.players[c.peer] = { id: c.peer, name: "Fighter", avatar: "🥊", team, ready: false };
-      this.conns[c.peer] = c;
-      if (SB.config.hasKey()) c.send({ t: "key", key: SB.config.getKey() });
-      c.send({ t: "welcome", you: c.peer, format: this.format });
-      this._broadcastLobby();
-    });
-    c.on("data", (d) => this._hostOnData(c.peer, d));
-    c.on("close", () => { delete this.conns[c.peer]; delete this.players[c.peer]; if (this.active) this._broadcastLobby(); else this._showLobby(); });
-  },
-
-  // ---------- guest: join ----------
+  // ---------- guest ----------
   joinMatch(code) {
     this.isHost = false;
     const q = code.includes("room=") ? new URLSearchParams(code.split("?")[1]) : null;
-    this.roomCode = (q ? q.get("room") : code).trim();
+    this.roomId = (q ? q.get("room") : code).trim();
     this.format = (q && q.get("fmt")) || new URLSearchParams(location.search).get("fmt") || "1v1";
-    this._joinAttempts = 0;
+    this.topic = "fightclub/" + this.roomId;
+    this.myId = this._rid("g");
+    this._gotLobby = false;
 
     this.choices.hidden = true;
     this.joiningCard.hidden = false;
-    this._setJoinStatus("Connecting to host…");
+    this._setJoinStatus("Connecting…");
 
-    this.peer = new Peer(this._peerOpts());
-    this.peer.on("open", () => { this.myId = this.peer.id; this._tryConnect(); });
-    this.peer.on("disconnected", () => { try { this.peer.reconnect(); } catch (e) {} });
-    this.peer.on("error", (e) => {
-      if (e.type === "peer-unavailable") this._scheduleRetry();
-      else if (e.type === "network" || e.type === "disconnected") { try { this.peer.reconnect(); } catch (_) {} this._scheduleRetry(); }
-      else this._setJoinStatus("Error: " + e.type + " — tap Retry.");
+    this._connect(() => {
+      this._publish({ t: "join", name: this._myName(), avatar: this._myAvatar() });
+      // re-announce until the host replies with the lobby (covers late host / lost msg)
+      clearInterval(this._joinPing);
+      let tries = 0;
+      this._joinPing = setInterval(() => {
+        if (this._gotLobby || tries++ > 40) { clearInterval(this._joinPing); return; }
+        this._setJoinStatus(`Connecting…${tries > 1 ? " (" + tries + ")" : ""}`);
+        this._publish({ t: "join", name: this._myName(), avatar: this._myAvatar() });
+      }, 1500);
     });
   },
 
-  _tryConnect() {
-    if (!this.peer || this.peer.destroyed) return;
-    this._setJoinStatus(this._joinAttempts ? `Host not ready yet… retrying (${this._joinAttempts})` : "Connecting to host…");
-    try {
-      this.conn = this.peer.connect(this.roomCode, { reliable: true });
-      this.conn.on("open", () => {
-        clearTimeout(this._joinTimer); clearTimeout(this._joinRetryTimer);
-        this.conn.send({ t: "join", name: this._myName(), avatar: this._myAvatar() });
-      });
-      this.conn.on("data", (d) => this._guestOnData(d));
-      this.conn.on("close", () => this._hostLeft());
-    } catch (e) { this._scheduleRetry(); return; }
-    clearTimeout(this._joinTimer);
-    this._joinTimer = setTimeout(() => { if (!this.conn || !this.conn.open) this._scheduleRetry(); }, 9000);
+  _rejoin() {
+    try { if (this.client) this.client.end(true); } catch (e) {}
+    this.client = null; this.brokerIdx = 0;
+    if (this.isHost) this.createMatch(this.format);
+    else this.joinMatch(this.roomId + "?room=" + this.roomId + "&fmt=" + this.format);
   },
 
-  _scheduleRetry() {
-    clearTimeout(this._joinTimer);
-    this._joinAttempts++;
-    if (this._joinAttempts > 30) { this._setJoinStatus("Couldn't reach the host. Make sure they have Fight Club open in front, then tap Retry."); return; }
-    this._setJoinStatus(`Host not ready yet… retrying (${this._joinAttempts})`);
-    clearTimeout(this._joinRetryTimer);
-    this._joinRetryTimer = setTimeout(() => this._tryConnect(), 2000);
+  // ---------- transport (MQTT over WebSocket) ----------
+  _connect(onReady) {
+    const url = this.BROKERS[this.brokerIdx % this.BROKERS.length];
+    const opts = {
+      clientId: "fc_" + this.myId + "_" + Math.random().toString(16).slice(2, 8),
+      clean: true, connectTimeout: 8000, reconnectPeriod: 2500, keepalive: 30,
+    };
+    // host announces its departure to the room if it drops
+    if (this.isHost) opts.will = { topic: this.topic, payload: JSON.stringify({ t: "hostleft", from: this.myId }), qos: 0 };
+
+    try { this.client = mqtt.connect(url, opts); }
+    catch (e) { this._brokerFail(onReady); return; }
+
+    let opened = false;
+    const failTimer = setTimeout(() => { if (!opened) this._brokerFail(onReady); }, 9000);
+
+    this.client.on("connect", () => {
+      opened = true; clearTimeout(failTimer);
+      this.client.subscribe(this.topic, { qos: 0 }, () => onReady && onReady());
+      if (this.isHost && SB.config.hasKey()) this._publish({ t: "key", key: SB.config.getKey() });
+    });
+    this.client.on("message", (t, payload) => {
+      try {
+        // browser payloads are Uint8Array; decode as UTF-8 (NOT .toString())
+        const text = typeof payload === "string" ? payload : new TextDecoder().decode(payload);
+        this._onMessage(JSON.parse(text));
+      } catch (e) {}
+    });
+    this.client.on("error", () => {});
+    this.client.on("close", () => {});
   },
+
+  _brokerFail(onReady) {
+    // try the next public broker before giving up
+    try { if (this.client) this.client.end(true); } catch (e) {}
+    this.brokerIdx++;
+    if (this.brokerIdx < this.BROKERS.length) { this._connect(onReady); return; }
+    this.brokerIdx = 0;
+    if (this.isHost) this.overlay.innerHTML = `Network issue<div class="sub">Couldn't reach the match relay. Check your connection and try again.</div>`;
+    else this._setJoinStatus("Couldn't reach the relay — tap Retry.");
+  },
+
+  _publish(obj) {
+    if (!this.client) return;
+    obj.from = this.myId;
+    try { this.client.publish(this.topic, JSON.stringify(obj), { qos: 0 }); } catch (e) {}
+  },
+
+  _onMessage(m) {
+    if (!m || m.from === this.myId) return; // ignore our own echoes
+
+    if (this.isHost) {
+      if (m.t === "join") {
+        if (!this.players[m.from]) {
+          const sizes = this.FORMATS[this.format];
+          const countA = Object.values(this.players).filter((p) => p.team === "A").length;
+          const team = countA < sizes.A ? "A" : "B";
+          this.players[m.from] = { id: m.from, name: (m.name || "Fighter").slice(0, 18), avatar: m.avatar || "🥊", team, ready: false };
+        } else {
+          this.players[m.from].name = (m.name || "Fighter").slice(0, 18);
+          this.players[m.from].avatar = m.avatar || "🥊";
+        }
+        if (SB.config.hasKey()) this._publish({ t: "key", key: SB.config.getKey() });
+        this._broadcastLobby();
+      } else if (m.t === "ready") {
+        if (this.players[m.from]) this.players[m.from].ready = true;
+        this._broadcastLobby(); this._hostMaybeStart();
+      } else if (m.t === "leave") {
+        delete this.players[m.from];
+        if (!this.active) this._broadcastLobby();
+      } else if (m.t === "atk" && this.active) {
+        this._refereeAtk(this.players[m.from] ? this.players[m.from].team : "B", m.move);
+      } else if (m.t === "def" && this.active) {
+        this.defendedUntil[m.from] = performance.now() + 1200;
+      }
+    } else {
+      // guest only acts on host-origin messages
+      if (m.t === "key") { if (!SB.config.hasKey()) SB.config.setSessionKey(m.key); return; }
+      if (m.t === "lobby") {
+        this._gotLobby = true; clearInterval(this._joinPing);
+        this.players = m.players; this.format = m.format;
+        const me = this.players[this.myId];
+        this.myTeam = me ? me.team : "B";
+        if (this.gameWrap.hidden) this._enterStage();
+        this._showLobby();
+      } else if (m.t === "start") { this._beginCountdown(); }
+      else if (m.t === "hp") { this.teamHP = m.hp; this.teamMax = m.max; this._renderHP(); this._flashFoe(); }
+      else if (m.t === "end") { this._finish(m.winTeam); }
+      else if (m.t === "hostleft") { this._hostLeft(); }
+    }
+  },
+
   _setJoinStatus(t) { if (this.joinStatusEl) this.joinStatusEl.textContent = t; },
-
-  // ---------- message handling ----------
-  _hostOnData(fromId, d) {
-    if (!d) return;
-    if (d.t === "join") {
-      if (this.players[fromId]) { this.players[fromId].name = (d.name || "Fighter").slice(0, 18); this.players[fromId].avatar = d.avatar || "🥊"; }
-      this._broadcastLobby();
-    } else if (d.t === "ready") {
-      if (this.players[fromId]) this.players[fromId].ready = true;
-      this._broadcastLobby();
-      this._hostMaybeStart();
-    } else if (d.t === "atk" && this.active) {
-      this._refereeAtk(this.players[fromId] ? this.players[fromId].team : "B", d.move);
-    } else if (d.t === "def" && this.active) {
-      this.defendedUntil[fromId] = performance.now() + 1200;
-    }
-  },
-
-  _guestOnData(d) {
-    if (!d) return;
-    if (d.t === "key") { if (!SB.config.hasKey()) { SB.config.setSessionKey(d.key); } return; }
-    if (d.t === "welcome") { this.myId = d.you; this.format = d.format; return; }
-    if (d.t === "lobby") {
-      this.players = d.players; this.format = d.format;
-      const me = this.players[this.myId];
-      this.myTeam = me ? me.team : "B";
-      this._showLobby();
-      return;
-    }
-    if (d.t === "start") { this._beginCountdown(); return; }
-    if (d.t === "hp") { this.teamHP = d.hp; this.teamMax = d.max; this._renderHP(); this._flashFoe(); return; }
-    if (d.t === "end") { this._finish(d.winTeam); return; }
-  },
 
   // ---------- lobby UI ----------
   _broadcastLobby() {
-    const msg = { t: "lobby", players: this.players, format: this.format };
-    Object.values(this.conns).forEach((c) => { try { c.send(msg); } catch (e) {} });
+    this._publish({ t: "lobby", players: this.players, format: this.format });
     this._showLobby();
   },
 
@@ -269,7 +250,7 @@ SB.MP = {
        </div>
        ${this.isHost && !full ? `<div class="share-link-row"><input id="mp-ov-link" class="input" readonly><button id="mp-ov-copy" class="btn btn-primary">Copy</button></div>
        <a id="mp-ov-wa" class="btn btn-whatsapp btn-block" target="_blank" rel="noopener">Share invite on WhatsApp</a>` : ""}
-       <div class="sub" id="mp-lobby-status">${full ? (allReady ? "All ready! Starting…" : "Everyone in — press Ready.") : "Waiting for players to join…"}</div>
+       <div class="sub">${full ? (allReady ? "All ready! Starting…" : "Everyone in — press Ready.") : "Waiting for players to join…"}</div>
        ${full ? `<button class="btn btn-primary btn-block" id="mp-ready-btn"${me && me.ready ? " disabled style=opacity:.6" : ""}>${me && me.ready ? "Ready ✓" : "✅ I'm Ready"}</button>` : ""}`;
     this.overlay.classList.add("show");
 
@@ -281,13 +262,13 @@ SB.MP = {
     }
     const rb = document.getElementById("mp-ready-btn");
     if (rb && !(me && me.ready)) rb.onclick = () => this._ready();
-
     if (this.isHost) this._hostMaybeStart();
   },
 
   _ready() {
-    if (this.isHost) { if (this.players[this.myId]) this.players[this.myId].ready = true; this._broadcastLobby(); this._hostMaybeStart(); }
-    else { this.conn.send({ t: "ready" }); if (this.players[this.myId]) this.players[this.myId].ready = true; this._showLobby(); }
+    if (this.players[this.myId]) this.players[this.myId].ready = true;
+    if (this.isHost) { this._broadcastLobby(); this._hostMaybeStart(); }
+    else { this._publish({ t: "ready" }); this._showLobby(); }
   },
 
   _hostMaybeStart() {
@@ -296,7 +277,7 @@ SB.MP = {
     if (list.length >= sizes.A + sizes.B && list.every((p) => p.ready)) {
       this.teamMax = { A: sizes.A * 100, B: sizes.B * 100 };
       this.teamHP = { A: this.teamMax.A, B: this.teamMax.B };
-      Object.values(this.conns).forEach((c) => { try { c.send({ t: "start" }); } catch (e) {} });
+      this._publish({ t: "start" });
       this._beginCountdown();
     }
   },
@@ -323,8 +304,7 @@ SB.MP = {
     this.timeLeft = 90;
     this._labelBars();
     if (this.isHost) {
-      // push the starting team HP so everyone's bars are correct from the bell
-      Object.values(this.conns).forEach((c) => { try { c.send({ t: "hp", hp: this.teamHP, max: this.teamMax }); } catch (e) {} });
+      this._publish({ t: "hp", hp: this.teamHP, max: this.teamMax });
       this._renderHP();
       this.tickId = setInterval(() => this._tick(), 1000);
     }
@@ -335,16 +315,15 @@ SB.MP = {
     if (!this.active) return;
     if (move === "slip" || move === "block") {
       if (this.isHost) this.defendedUntil[this.myId] = performance.now() + 1200;
-      else this.conn.send({ t: "def", move });
+      else this._publish({ t: "def", move });
       this._float("✓ " + SB.MOVE_LABEL[move], "var(--green)", 0.3, 0.6);
     } else {
       if (this.isHost) this._refereeAtk(this.myTeam, move);
-      else this.conn.send({ t: "atk", move });
+      else this._publish({ t: "atk", move });
       this._float(SB.MOVE_LABEL[move] + "!", "var(--accent2)", 0.7, 0.4);
     }
   },
 
-  // host-only: apply a punch from attackerTeam to the enemy team pool
   _refereeAtk(attackerTeam, move) {
     const enemy = attackerTeam === "A" ? "B" : "A";
     const base = move === "jab" ? 5 : move === "cross" ? 9 : 12;
@@ -352,7 +331,7 @@ SB.MP = {
     const enemyDefending = Object.values(this.players).some((p) => p.team === enemy && (this.defendedUntil[p.id] || 0) > now);
     const dmg = enemyDefending ? Math.round(base * 0.2) : base;
     this.teamHP[enemy] = Math.max(0, this.teamHP[enemy] - dmg);
-    Object.values(this.conns).forEach((c) => { try { c.send({ t: "hp", hp: this.teamHP, max: this.teamMax }); } catch (e) {} });
+    this._publish({ t: "hp", hp: this.teamHP, max: this.teamMax });
     this._renderHP(); this._flashFoe();
     if (this.teamHP[enemy] <= 0) this._endMatch(attackerTeam);
   },
@@ -366,9 +345,9 @@ SB.MP = {
     }
   },
 
-  _endMatch(winTeam) {   // host authority
+  _endMatch(winTeam) {
     if (!this.active) return;
-    Object.values(this.conns).forEach((c) => { try { c.send({ t: "end", winTeam }); } catch (e) {} });
+    this._publish({ t: "end", winTeam });
     this._finish(winTeam);
   },
 
@@ -378,7 +357,7 @@ SB.MP = {
     clearInterval(this.tickId);
     const won = this.myTeam === winTeam;
     this.overlay.innerHTML = won
-      ? `🏆 Team ${this.myTeam} Wins!<div class="sub">Great teamwork — you took the round.</div>`
+      ? `🏆 Team ${this.myTeam} Wins!<div class="sub">Great work — you took the round.</div>`
       : `💥 Defeated<div class="sub">Team ${winTeam} took this one. Run it back!</div>`;
     this._menuButton();
     this.overlay.classList.add("show");
@@ -449,19 +428,19 @@ SB.MP = {
     this.stage.appendChild(el); setTimeout(() => el.remove(), 800);
   },
 
+  _rid(prefix) { return (prefix || "") + Math.random().toString(36).slice(2, 10); },
   _myName() { return SB.Profile && SB.Profile.current ? SB.Profile.current.name : "Fighter"; },
   _myAvatar() { return SB.Profile && SB.Profile.current ? SB.Profile.current.avatar : "🥊"; },
 
   stop() {
-    this.active = false; this._endedByLeave = false;
+    this.active = false; this._endedByLeave = false; this._gotLobby = false;
     clearInterval(this.tickId);
-    clearTimeout(this._joinTimer); clearTimeout(this._joinRetryTimer);
+    clearInterval(this._joinPing);
     if (this.pose) this.pose.stop();
     this.pose = null;
-    try { if (this.conn) this.conn.close(); } catch (e) {}
-    try { Object.values(this.conns).forEach((c) => c.close()); } catch (e) {}
-    try { if (this.peer) this.peer.destroy(); } catch (e) {}
-    this.conn = null; this.conns = {}; this.peer = null;
+    try { this._publish({ t: "leave" }); } catch (e) {}
+    try { if (this.client) this.client.end(true); } catch (e) {}
+    this.client = null;
   },
 };
 
