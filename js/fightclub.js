@@ -41,6 +41,13 @@ SB.Profile = {
 
   exists() { return !!(this.current && this.current.name); },
 
+  // Log out the current fighter on this device. Their record stays in the shared
+  // database (so the leaderboard keeps it) — only this device forgets them.
+  logout() {
+    this.current = null;
+    localStorage.removeItem(this.CUR);
+  },
+
   randomName() {
     const a = ["Iron", "Shadow", "Steel", "Thunder", "Venom", "Blitz", "Rapid", "Savage", "Phantom", "Nitro", "Crimson", "Atomic"];
     const b = ["Fist", "Hook", "Jab", "Storm", "Fang", "Bolt", "Cobra", "Hammer", "Reaper", "Striker", "Puncher", "Cross"];

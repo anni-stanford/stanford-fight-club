@@ -65,6 +65,7 @@
     document.getElementById("st-kos").textContent = p.kos || 0;
     document.getElementById("st-streak").textContent = p.streak || 0;
     document.getElementById("st-rating").textContent = SB.Profile.rating(p);
+    renderAiStatus();
 
     const list = document.getElementById("lb-list");
     list.innerHTML = '<p class="muted small">Loading…</p>';
@@ -74,7 +75,7 @@
         : "Top fighters on this device. Add a database URL to go global.";
       list.innerHTML = "";
       if (!board.length) { list.innerHTML = '<p class="muted small">No fighters yet — win a match to appear here.</p>'; return; }
-      board.slice(0, 100).forEach((f, i) => {
+      board.slice(0, 10).forEach((f, i) => {
         const row = document.createElement("div");
         row.className = "lb-row" + (f.id === p.id ? " me" : "");
         row.innerHTML =
@@ -88,6 +89,29 @@
   }
   document.getElementById("dash-edit").onclick = () => openOnboard(false);
   document.getElementById("dash-challenge").onclick = () => openShare(null, true);
+  document.getElementById("dash-logout").onclick = () => {
+    SB.Profile.logout();
+    renderChip();
+    show("menu");
+  };
+
+  // AI coach status (real OpenAI only runs when a key is present).
+  function renderAiStatus() {
+    const box = document.getElementById("ai-status");
+    const txt = document.getElementById("ai-status-text");
+    const btn = document.getElementById("ai-status-btn");
+    if (!box) return;
+    if (SB.config.hasKey()) {
+      box.className = "glass ai-status on";
+      txt.textContent = "🧠 AI coach: ACTIVE — live OpenAI commentary during fights.";
+      btn.hidden = true;
+    } else {
+      box.className = "glass ai-status off";
+      txt.textContent = "🧠 AI coach: OFF — add an OpenAI key for live AI commentary.";
+      btn.hidden = false;
+    }
+    btn.onclick = () => { keyInput.value = SB.config.getKey(); show("apikey"); };
+  }
 
   // ---------- onboarding ----------
   const onboard = document.getElementById("onboard");
