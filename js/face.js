@@ -140,25 +140,40 @@ SB.Face = {
     return { cx: nose.x || cx, cy: (nose.y || cy) - half * 0.12, half };
   },
 
+  // Crop + mirror a square face from any <video> using a face box. Returns a JPEG data URL.
+  _cropFace(video, box, out) {
+    out = out || 256;
+    const vw = video.videoWidth || 480, vh = video.videoHeight || 480;
+    let bs = box.half * 2;
+    if (bs > Math.min(vw, vh)) bs = Math.min(vw, vh);
+    let bx = box.cx - bs / 2, by = box.cy - bs / 2;
+    bx = Math.max(0, Math.min(bx, vw - bs));
+    by = Math.max(0, Math.min(by, vh - bs));
+    const cv = this._tmp || (this._tmp = document.createElement("canvas"));
+    cv.width = out; cv.height = out;
+    const c = cv.getContext("2d");
+    c.save();
+    c.translate(out, 0); c.scale(-1, 1); // mirror to match the on-screen (mirrored) view
+    c.drawImage(video, bx, by, bs, bs, 0, 0, out, out);
+    c.restore();
+    try { return cv.toDataURL("image/jpeg", 0.72); } catch (e) { return null; }
+  },
+
+  // Grab a face from a live video given current MoveNet keypoints (array OR byName map).
+  // Returns a data URL, or null if no confident face is visible. Used to auto-snap a
+  // player's face during a match so opponents always see a real photo (not an emoji).
+  grabFace(video, keypoints) {
+    if (!video || !video.videoWidth) return null;
+    const arr = keypoints && !Array.isArray(keypoints) ? Object.values(keypoints) : (keypoints || []);
+    const box = this._faceBox(arr);
+    if (!box) return null;
+    return this._cropFace(video, box, 224);
+  },
+
   _capture() {
     const vw = this.video.videoWidth || 480, vh = this.video.videoHeight || 480;
     const box = this._lastBox || { cx: vw / 2, cy: vh / 2, half: Math.min(vw, vh) * 0.42 };
-    let bs = box.half * 2;
-    let bx = box.cx - box.half, by = box.cy - box.half;
-    // clamp to frame
-    bx = Math.max(0, Math.min(bx, vw - bs));
-    by = Math.max(0, Math.min(by, vh - bs));
-    if (bs > vw) bs = vw; if (bs > vh) bs = vh;
-
-    const out = 256;
-    this.canvas.width = out; this.canvas.height = out;
-    const c = this.canvas.getContext("2d");
-    c.save();
-    c.translate(out, 0); c.scale(-1, 1); // mirror to match the preview
-    c.drawImage(this.video, bx, by, bs, bs, 0, 0, out, out);
-    c.restore();
-    let url;
-    try { url = this.canvas.toDataURL("image/jpeg", 0.72); } catch (e) { url = null; }
+    const url = this._cropFace(this.video, box, 256);
     if (!url) { this.hint.textContent = "Capture failed — try again."; this._liveMode(); return; }
 
     this._captured = url;

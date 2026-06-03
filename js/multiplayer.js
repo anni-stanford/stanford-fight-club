@@ -191,6 +191,8 @@ SB.MP = {
       } else if (m.t === "ready") {
         if (this.players[m.from]) this.players[m.from].ready = true;
         this._broadcastLobby(); this._hostMaybeStart();
+      } else if (m.t === "myface") {
+        if (m.face) { this.faces[m.from] = m.face; this._publish({ t: "faces", faces: this.faces }); this._renderFoeFace(); }
       } else if (m.t === "leave") {
         delete this.players[m.from];
         if (!this.active) this._broadcastLobby();
@@ -300,7 +302,19 @@ SB.MP = {
 
   async _beginRound() {
     this.overlay.innerHTML = `<div style="font-size:40px">Starting camera…</div>`;
-    try { await this.pose.start((kp) => this.gestures.feed(kp)); }
+    let faceTries = 0;
+    try {
+      await this.pose.start((kp) => {
+        this.gestures.feed(kp);
+        // Auto-snap our own face from the live feed so the opponent sees a real
+        // photo (not an emoji). Only needed if we don't already have one.
+        if (!this.faces[this.myId] && faceTries < 150 && SB.Face && SB.Face.grabFace) {
+          faceTries++;
+          const url = SB.Face.grabFace(this.video, kp);
+          if (url) this._sendMyFace(url);
+        }
+      });
+    }
     catch (e) { this.overlay.innerHTML = `Camera needed<div class="sub">Allow camera access to fight.</div>`; return; }
     this.overlay.classList.remove("show");
     this.overlay.innerHTML = "";
@@ -417,6 +431,16 @@ SB.MP = {
     this.foeEl.style.setProperty("--dmg", dmg.toFixed(2));
     for (let i = 0; i <= 5; i++) this.foeEl.classList.remove("dmg-" + i);
     this.foeEl.classList.add("dmg-" + stage);
+  },
+
+  // Broadcast our freshly-captured face so opponents see a real photo.
+  _sendMyFace(url) {
+    if (!url) return;
+    this.faces[this.myId] = url;
+    try { if (SB.Profile && SB.Profile.current) SB.Profile.update({ face: url }); } catch (e) {}
+    if (this.isHost) this._publish({ t: "faces", faces: this.faces });
+    else this._publish({ t: "myface", face: url });
+    this._renderFoeFace();
   },
 
   // Find the opponent we display (first enemy fighter) and show their real face.
