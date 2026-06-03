@@ -16,16 +16,39 @@
 window.SB = window.SB || {};
 
 SB.MP = {
-  PEER_OPTS: {
-    config: {
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:global.stun.twilio.com:3478" },
-        { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
-        { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
-        { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
-      ],
-    },
+  /*
+   * Cross-network play needs a TURN relay (same-WiFi works without one). The free
+   * public relays below are best-effort and often rate-limited, so games between
+   * different networks/countries can fail. For reliable worldwide play, paste your
+   * OWN free TURN credentials into MY_TURN.
+   *
+   * ── FREE TURN in ~5 min (50 GB/mo, no credit card) ──────────────────────
+   *   1. Sign up at https://dashboard.metered.ca  → "TURN Servers".
+   *   2. It shows an iceServers array (turn: URLs + username + credential).
+   *   3. Paste those objects into MY_TURN below, commit & push. Done.
+   * ─────────────────────────────────────────────────────────────────────────
+   */
+  MY_TURN: [
+    // { urls: "turn:standard.relay.metered.ca:80", username: "PASTE", credential: "PASTE" },
+    // { urls: "turn:standard.relay.metered.ca:443", username: "PASTE", credential: "PASTE" },
+    // { urls: "turn:standard.relay.metered.ca:443?transport=tcp", username: "PASTE", credential: "PASTE" },
+  ],
+
+  _peerOpts() {
+    return {
+      config: {
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+          { urls: "stun:global.stun.twilio.com:3478" },
+          // best-effort free relays (may be rate-limited):
+          { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+          { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+          { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
+          ...this.MY_TURN,
+        ],
+      },
+    };
   },
 
   FORMATS: { "1v1": { A: 1, B: 1 }, "1v2": { A: 1, B: 2 }, "2v2": { A: 2, B: 2 } },
@@ -96,7 +119,7 @@ SB.MP = {
     this.players = {};
     this._link = ""; this._waHref = "#";
 
-    this.peer = new Peer(this.PEER_OPTS);
+    this.peer = new Peer(this._peerOpts());
     this.peer.on("open", (id) => {
       this.roomCode = id; this.myId = id;
       // host takes the first slot on Team A
@@ -140,7 +163,7 @@ SB.MP = {
     this.joiningCard.hidden = false;
     this._setJoinStatus("Connecting to host…");
 
-    this.peer = new Peer(this.PEER_OPTS);
+    this.peer = new Peer(this._peerOpts());
     this.peer.on("open", () => { this.myId = this.peer.id; this._tryConnect(); });
     this.peer.on("disconnected", () => { try { this.peer.reconnect(); } catch (e) {} });
     this.peer.on("error", (e) => {
