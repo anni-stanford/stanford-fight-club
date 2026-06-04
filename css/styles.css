@@ -410,6 +410,35 @@ h3 { font-size: 17px; }
 .dmg-5 .br-stars { opacity: 1; animation: spinStars 1.2s linear infinite; }
 @keyframes spinStars { from { transform: translateX(-50%) rotate(0); } to { transform: translateX(-50%) rotate(360deg); } }
 
+/* ===================== Single-player level + AI brain chips ===================== */
+.hud-chips {
+  position: absolute; top: 58px; left: 50%; transform: translateX(-50%);
+  z-index: 6; display: flex; gap: 8px; align-items: center; pointer-events: none;
+  flex-wrap: wrap; justify-content: center; max-width: 92%;
+}
+.level-chip {
+  font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  padding: 6px 12px; border-radius: 999px; color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  box-shadow: 0 6px 18px rgba(255,59,59,.35);
+}
+.ai-chip {
+  font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px;
+  background: rgba(20,20,30,.6); color: #cfe; border: 1px solid rgba(120,180,255,.3);
+  backdrop-filter: blur(8px);
+}
+.ai-chip.live { color: #fff; background: linear-gradient(135deg,#2b6bff,#7b2bff); border-color: transparent; box-shadow: 0 6px 18px rgba(80,80,255,.4); }
+
+/* Between-level training progress bar (shown in the overlay). */
+.train-bar { width: min(360px, 70%); height: 12px; border-radius: 999px; margin: 14px auto 6px; background: rgba(255,255,255,.14); overflow: hidden; }
+.train-bar i { display: block; height: 100%; width: 0%; border-radius: 999px; background: linear-gradient(90deg,#2b6bff,#7b2bff,#ff3b3b); transition: width .12s linear; }
+.train-stat { font-variant-numeric: tabular-nums; font-size: 13px; opacity: .85; }
+
+@media (max-width: 640px) {
+  .hud-chips { top: 52px; }
+  .level-chip, .ai-chip { font-size: 10.5px; padding: 5px 9px; }
+}
+
 /* ===================== Onboarding face row ===================== */
 .face-row { display: flex; align-items: center; gap: 12px; width: 100%; margin: 8px 0 4px; text-align: left; }
 .face-thumb {

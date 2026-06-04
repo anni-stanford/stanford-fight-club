@@ -8,12 +8,15 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=27" />
+  <link rel="stylesheet" href="css/styles.css?v=28" />
 
   <!-- TensorFlow.js + MoveNet pose detection (CDN, no build step needed) -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.20.0/dist/tf-core.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.20.0/dist/tf-converter.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.20.0/dist/tf-backend-webgl.min.js"></script>
+  <!-- tfjs-layers lets us BUILD + TRAIN a small neural net in-browser:
+       the single-player AI opponent learns the player's moves between levels. -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-layers@4.20.0/dist/tf-layers.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
 
   <!-- MQTT over WebSocket: tiny move-messages relayed via a free public broker,
@@ -103,13 +106,17 @@
       <div class="stage">
         <video id="single-video" playsinline muted autoplay webkit-playsinline></video>
         <canvas id="single-canvas"></canvas>
+        <div class="hud-chips">
+          <div class="level-chip" id="single-level">Level 1 / 4</div>
+          <div class="ai-chip" id="single-ai">🧠 AI: learning your style…</div>
+        </div>
         <div class="hud hud-top">
           <button class="btn btn-ghost btn-back" data-back>← Menu</button>
           <div class="healthbars">
             <div class="hb"><span>You</span><div class="bar"><i id="single-hp-you"></i></div></div>
             <div class="hb"><span>AI</span><div class="bar bar-foe"><i id="single-hp-ai"></i></div></div>
           </div>
-          <div class="round-timer" id="single-timer">90</div>
+          <div class="round-timer" id="single-timer">30</div>
         </div>
         <div class="opponent" id="single-opponent">
           <img class="foe-img" id="single-foe" src="assets/boxer-idle.png" alt="opponent boxer" />
@@ -285,17 +292,18 @@
   </div>
 
   <!-- App modules (?v bumped on each deploy so browsers always load the latest) -->
-  <script src="js/music.js?v=27"></script>
-  <script src="js/db.js?v=27"></script>
-  <script src="js/fightclub.js?v=27"></script>
-  <script src="js/config.js?v=27"></script>
-  <script src="js/pose.js?v=27"></script>
-  <script src="js/face.js?v=27"></script>
-  <script src="js/gestures.js?v=27"></script>
-  <script src="js/coach.js?v=27"></script>
-  <script src="js/training.js?v=27"></script>
-  <script src="js/game.js?v=27"></script>
-  <script src="js/multiplayer.js?v=27"></script>
-  <script src="js/main.js?v=27"></script>
+  <script src="js/music.js?v=28"></script>
+  <script src="js/db.js?v=28"></script>
+  <script src="js/fightclub.js?v=28"></script>
+  <script src="js/config.js?v=28"></script>
+  <script src="js/pose.js?v=28"></script>
+  <script src="js/face.js?v=28"></script>
+  <script src="js/gestures.js?v=28"></script>
+  <script src="js/coach.js?v=28"></script>
+  <script src="js/training.js?v=28"></script>
+  <script src="js/opponentAI.js?v=28"></script>
+  <script src="js/game.js?v=28"></script>
+  <script src="js/multiplayer.js?v=28"></script>
+  <script src="js/main.js?v=28"></script>
 </body>
 </html>

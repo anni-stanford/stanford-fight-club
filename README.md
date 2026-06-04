@@ -1,6 +1,6 @@
 # 🥊 Stanford Fight Club
 
-**Stanford Fight Club (ShadowBox)** makes staying fit genuinely fun. It turns your webcam into a boxing ring — no controller, no gym, no gear. Square up to your screen and fight an AI opponent or a friend across the internet who reacts to your every move, building fitness, reflexes, and real boxing skills while you play. **Your body is the controller. Step in and throw down.**
+**Stanford Fight Club** makes staying fit genuinely fun. It turns your webcam into a boxing ring — no controller, no gym, no gear. Square up to your screen and fight an AI that *learns your style* or a friend across the internet who reacts to your every move, building fitness, reflexes, and real boxing skills while you play. **Your body is the controller. Step in and throw down.**
 
 > 🎓 **This project was built while working on the CS 153: Frontier Systems at Stanford.** Built solo with heavy AI assistance (see [AI Usage](#-ai-usage-disclosure)).
 
@@ -8,17 +8,15 @@
 
 ## What it does
 
-ShadowBox runs entirely in your browser. A webcam + real-time pose estimation reads your movement, a lightweight gesture classifier turns it into boxing moves (**jab, cross, hook, slip, block**), and a game loop reacts to you in real time.
+Fight Club runs entirely in your browser — **no install, no login, no API keys, completely free**. A webcam + real-time pose estimation reads your movement, a lightweight gesture classifier turns it into boxing moves (**jab, cross, hook, slip, block**), and a game loop reacts to you in real time.
 
 Three modes:
 
 | Mode | What happens |
 |------|--------------|
 | 🎯 **Training** | The coach calls out moves and grades your timing/accuracy rep by rep. The "boxing tutor" layer. |
-| 🤖 **Single Player** | Fight a reactive AI that *telegraphs* attacks. Slip or block in the reaction beat, then counter. 90-second round, most HP wins. |
-| 🌐 **Multiplayer** | Box a friend live. Create a match, get a link, send it over **WhatsApp** — they tap it and you fight. Two laptops, two cameras, real punches. |
-
-An optional **OpenAI-powered coach** gives live, spoken-style commentary and corrections.
+| 🤖 **Single Player** | A **4-level campaign vs an AI that learns YOU.** Between every level a small neural network (TensorFlow.js) trains on the moves you actually threw — more data and more epochs each level — so the opponent reads your habits better as you climb. |
+| 🌐 **Multiplayer** | Box a friend live. Create a match, get a link, send it over **WhatsApp** — they tap it and you fight. Two devices, two cameras, real punches; your real face appears on your opponent and gets bruised as you land shots. |
 
 ---
 
@@ -36,16 +34,16 @@ We deliberately built a **game**, not a millimetre-perfect form grader. A single
 webcam → MoveNet pose (TensorFlow.js, on-device)
        → gesture classifier (velocity + relative-position heuristics)
        → move events: jab | cross | hook | slip | block
-       → game loop (training / single-player AI / multiplayer netcode)
-       → OpenAI coach (optional, text-only commentary)
+       → game loop (training / single-player learning-AI / multiplayer netcode)
+       → on-device coach lines  (no server, no key)
 ```
 
 - **Pose** — `@tensorflow-models/pose-detection` MoveNet *SinglePose Lightning* for fast, real-time skeletons on a normal laptop. (`js/pose.js`)
 - **Gestures** — depth-free heuristics on wrist velocity, arm extension (in shoulder-widths), and head offset, with per-move cooldowns. Tuned for *category + timing*, the part that's robust on a webcam. (`js/gestures.js`)
-- **Single player** — the AI **telegraphs** an attack and gives you a reaction beat; timing windows hide webcam/processing latency. (`js/game.js`)
-- **Multiplayer (1v1 / 1v2 / 2v2)** — instead of direct browser-to-browser P2P (which breaks across networks/countries and would need a TURN relay), every player connects **outbound** to a **free public MQTT-over-WebSocket broker** and they exchange **only tiny JSON move/state messages** on a shared room topic. Outbound connections always succeed (like loading any website), so it works **worldwide with zero setup — no TURN, no accounts, no server to host**. Each side runs its own camera + detection locally; **no video is ever transmitted**. The host acts as referee (authoritative HP/damage); a `?room=CODE&fmt=...` link is forwardable over WhatsApp. (`js/multiplayer.js`)
-- **Coach** — OpenAI Chat Completions (`gpt-4o-mini`), throttled, always with a local fallback line so the game is fully playable with no key/network. Only a short text summary is sent — never video or pose data. (`js/coach.js`)
-- **Privacy** — the OpenAI key is stored only in your browser's `localStorage` and is sent only to OpenAI.
+- **Single-player learning AI** — a real **TensorFlow.js neural network** (`[lastK moves]→softmax(next move)`) is trained **in your browser** on the moves you throw. After each of the 4 levels it `fit()`s on all your moves so far, **warm-started and for more epochs each level** (≈16 → 42 → 78 cumulative), so it gets measurably more "trained on you." In-fight the opponent calls `predict()` and pre-guards your likely next punch; higher levels trust the prediction more. The brain (dataset + weights) persists per fighter (localStorage + IndexedDB), so returning players face an even smarter opponent. (`js/opponentAI.js`, `js/game.js`)
+- **Multiplayer (1v1 / 1v2 / 2v2)** — instead of direct browser-to-browser P2P (which breaks across networks/countries and would need a TURN relay), every player connects **outbound** to a **free public MQTT-over-WebSocket broker** and they exchange **only tiny JSON move/state messages** on a shared room topic. Outbound connections always succeed (like loading any website), so it works **worldwide with zero setup — no TURN, no accounts, no server to host**. Each side runs its own camera + detection locally; **no video is ever transmitted** (only a one-time tiny face thumbnail for the opponent head). The host acts as referee (authoritative HP/damage); a `?room=CODE&fmt=...` link is forwardable over WhatsApp. (`js/multiplayer.js`)
+- **Coach** — short, curated boxing-coach lines chosen on-device. No network, no key — the game is fully free and self-contained. (`js/coach.js`)
+- **Privacy** — everything runs locally. Your camera feed and pose data never leave your device; multiplayer sends only tiny move messages (and a small face thumbnail) to the people you're fighting.
 
 ---
 
@@ -54,13 +52,13 @@ webcam → MoveNet pose (TensorFlow.js, on-device)
 No build step. You just need a static server (the browser requires HTTPS or `localhost` for webcam access).
 
 ```bash
-git clone https://github.com/anni-stanford/shadowbox.git
-cd shadowbox
+git clone https://github.com/anni-stanford/stanford-fight-club.git
+cd stanford-fight-club
 npm start          # serves on http://localhost:7788  (uses python3 -m http.server)
 # or any static server, e.g.:  npx serve --listen 7788
 ```
 
-Open `http://localhost:7788`, allow camera access, (optionally) paste an OpenAI key, and pick a mode.
+Open `http://localhost:7788`, allow camera access, and pick a mode. No key, no login.
 
 **Multiplayer tip:** create a match on one device, copy the link (or hit *Share on WhatsApp*), and open it on another. Both need their own webcam. Because moves are relayed through a public MQTT broker over outbound WebSocket connections, it works across **different networks/countries with no extra setup** — just host the page over HTTPS (e.g. GitHub Pages) so the browser allows webcam access.
 
@@ -69,8 +67,8 @@ Open `http://localhost:7788`, allow camera access, (optionally) paste an OpenAI 
 ## Stack
 
 - TensorFlow.js + MoveNet (pose estimation)
+- TensorFlow.js Layers (on-device neural net — the single-player AI that learns your style)
 - MQTT over WebSocket via a free public broker (zero-setup, cross-network multiplayer message relay)
-- OpenAI API (optional coach commentary)
 - Vanilla HTML/CSS/JS — zero build tooling, fully reproducible
 
 ---
@@ -89,9 +87,9 @@ Per CS 153 policy, AI tools were used throughout:
 
 - **Ideation & scoping** — used a chat LLM to rank movement domains for webcam feasibility, pivot from a "form grader" to a *game* (the key insight that makes it work), and shape the multiplayer concept, naming, and pitch.
 - **Code generation** — the pose pipeline, gesture heuristics, game loops, WebRTC multiplayer, and UI were written with substantial AI assistance, then reviewed, integrated, and tuned by the author.
-- **Runtime AI** — the in-app coach uses the OpenAI API for live commentary (optional; disabled gracefully without a key).
+- **Runtime AI (on-device)** — the single-player opponent is a real TensorFlow.js neural network **trained live in the player's browser** on their own moves; it gets trained for more epochs each level. No third-party AI service is used at runtime — the game is fully free and self-contained.
 
-All major design decisions, the gesture-detection heuristics, and the netcode fairness model were directed and reviewed by the author. The product, integration, and iteration are the author's own work.
+All major design decisions, the gesture-detection heuristics, the learning-opponent design, and the netcode fairness model were directed and reviewed by the author. The product, integration, and iteration are the author's own work.
 
 ## License
 
