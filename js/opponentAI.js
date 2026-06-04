@@ -41,6 +41,9 @@ SB.OpponentAI = {
     this._load();
     this.usingNN = !!(window.tf && tf.sequential && tf.layers);
     if (this.usingNN) {
+      // Make sure SOME backend is initialized: WebGL (GPU) if the device has it,
+      // otherwise the CPU backend. Training this tiny net is fast either way.
+      try { if (tf.ready) await tf.ready(); } catch (e) {}
       try {
         this.model = await tf.loadLayersModel("indexeddb://" + this._modelKey());
       } catch (e) {
@@ -128,18 +131,25 @@ SB.OpponentAI = {
     const xs = tf.tensor2d(samples.xs);
     const ys = tf.tensor2d(samples.ys);
     let lastLoss = 0, lastAcc = 0;
-    try {
-      await this.model.fit(xs, ys, {
-        epochs,
-        batchSize: Math.min(16, samples.xs.length),
-        shuffle: true,
-        callbacks: {
-          onEpochEnd: (ep, logs) => {
-            lastLoss = logs.loss; lastAcc = logs.acc != null ? logs.acc : logs.accuracy || 0;
-            if (onProgress) onProgress((ep + 1) / epochs, { loss: lastLoss, acc: lastAcc });
-          },
+    const fitOpts = {
+      epochs,
+      batchSize: Math.min(16, samples.xs.length),
+      shuffle: true,
+      callbacks: {
+        onEpochEnd: (ep, logs) => {
+          lastLoss = logs.loss; lastAcc = logs.acc != null ? logs.acc : logs.accuracy || 0;
+          if (onProgress) onProgress((ep + 1) / epochs, { loss: lastLoss, acc: lastAcc });
         },
-      });
+      },
+    };
+    try {
+      try {
+        await this.model.fit(xs, ys, fitOpts);
+      } catch (e1) {
+        // If a GPU/WebGL op fails on this device, drop to CPU and try once more.
+        try { await tf.setBackend("cpu"); await tf.ready(); await this.model.fit(xs, ys, fitOpts); }
+        catch (e2) { /* leave model as-is; predict() still works, game continues */ }
+      }
     } finally {
       xs.dispose(); ys.dispose();
     }
