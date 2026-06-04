@@ -1,72 +1,65 @@
 /*
- * opponentAI.js — a REAL, on-device neural network that learns YOUR fighting
- * style and gets smarter every level.
+ * opponentAI.js — a REAL neural network that learns YOUR fighting style,
+ * written in PLAIN JavaScript and trained 100% on the CPU. No GPU, no WebGL,
+ * no TensorFlow, no server — so it runs anywhere, even a weak phone.
  *
- * This is genuine machine learning (TensorFlow.js), trained in your browser on
- * the moves you actually throw — no servers, no pre-baked behavior:
+ * Why hand-rolled? The model is tiny, so we don't need a heavy ML library or a
+ * graphics card. A few small matrix multiplies + backpropagation in JavaScript
+ * train it in well under a second. This guarantees "trains on your device's CPU"
+ * is literally true on every device.
  *
  *   • Data:   every move you make (jab/cross/hook/slip/block) is recorded as a
- *             sequence. We build training samples of "last K moves -> next move".
- *   • Model:  a small classifier  [K*5] -> Dense(24) -> Dense(16) -> softmax(5)
- *             that predicts your NEXT move from your recent pattern.
- *   • Train:  after each level we call model.fit() on ALL your moves so far.
- *             The model is warm-started and trained for MORE epochs each level,
- *             so Level 2's brain is more trained than Level 1, Level 3 more than
- *             2, Level 4 more than 3 — it literally keeps learning you.
- *   • Use:    in-fight, the opponent predicts your next move and reacts (guards
- *             your favorite punches, baits your habits). Higher levels trust the
- *             prediction more, so the better-trained brain fights harder.
+ *             sequence. Training samples = "your last K moves -> your next move".
+ *   • Model:  15 -> 24 (ReLU) -> 16 (ReLU) -> 5 (softmax), ~870 weights.
+ *   • Train:  after each of the 4 levels we run gradient descent on ALL your
+ *             moves so far, warm-started and for MORE epochs each level
+ *             (16 -> 42 -> 78 cumulative), so it gets more "trained on you".
+ *   • Use:    in-fight the opponent predicts your next move and pre-guards it;
+ *             higher levels trust the prediction more.
  *
- * Everything persists per fighter (dataset in localStorage, weights in
- * IndexedDB), so a returning player faces an even-more-trained opponent.
+ * Weights + your move history persist per fighter in localStorage, so returning
+ * players face an even-more-trained opponent. Everything stays on your device.
  */
 window.SB = window.SB || {};
 
 SB.OpponentAI = {
   MOVES: ["jab", "cross", "hook", "slip", "block"],
   N: 5,
-  K: 3, // how many recent moves the brain looks at to predict the next one
+  K: 3,           // how many recent moves we look at to predict the next
+  H1: 24, H2: 16, // hidden layer sizes
+  IN: 15,         // K * N
+  lr: 0.12,       // learning rate (SGD)
 
-  model: null,
-  usingNN: false,
-  moves: [],          // full move history across all levels (indices)
-  _recent: [],        // rolling last-K moves for live prediction
-  totalEpochs: 0,     // cumulative epochs this brain has trained (grows each level)
-  trainedLevels: 0,
-  profileId: "guest",
+  W1: null, b1: null, W2: null, b2: null, W3: null, b3: null,
+  moves: [], _recent: [],
+  totalEpochs: 0, trainedLevels: 0, lastLoss: 0, lastAcc: 0,
+  profileId: "guest", usingNN: true,
 
   async init(profileId) {
     this.profileId = profileId || "guest";
     this._recent = [];
-    this._load();
-    this.usingNN = !!(window.tf && tf.sequential && tf.layers);
-    if (this.usingNN) {
-      // Make sure SOME backend is initialized: WebGL (GPU) if the device has it,
-      // otherwise the CPU backend. Training this tiny net is fast either way.
-      try { if (tf.ready) await tf.ready(); } catch (e) {}
-      try {
-        this.model = await tf.loadLayersModel("indexeddb://" + this._modelKey());
-      } catch (e) {
-        this.model = this._build();
-      }
-    }
+    if (!this._load()) this._initWeights();
+    this.usingNN = true; // always a real (pure-JS) neural net
     return this;
   },
 
-  _modelKey() { return "fc-opp-" + this.profileId; },
-  _moveKey() { return "fc_opp_moves_" + this.profileId; },
-  _metaKey() { return "fc_opp_meta_" + this.profileId; },
+  // ---------- model params ----------
+  _rand(n, fanIn, fanOut) {
+    const r = Math.sqrt(6 / (fanIn + fanOut));   // Xavier/Glorot init
+    const a = new Float64Array(n);
+    for (let i = 0; i < n; i++) a[i] = (Math.random() * 2 - 1) * r;
+    return a;
+  },
+  _zeros(n) { return new Float64Array(n); },
 
-  _build() {
-    const m = tf.sequential();
-    m.add(tf.layers.dense({ inputShape: [this.K * this.N], units: 24, activation: "relu" }));
-    m.add(tf.layers.dense({ units: 16, activation: "relu" }));
-    m.add(tf.layers.dense({ units: this.N, activation: "softmax" }));
-    m.compile({ optimizer: tf.train.adam(0.01), loss: "categoricalCrossentropy", metrics: ["accuracy"] });
-    return m;
+  _initWeights() {
+    this.W1 = this._rand(this.IN * this.H1, this.IN, this.H1); this.b1 = this._zeros(this.H1);
+    this.W2 = this._rand(this.H1 * this.H2, this.H1, this.H2); this.b2 = this._zeros(this.H2);
+    this.W3 = this._rand(this.H2 * this.N, this.H2, this.N);   this.b3 = this._zeros(this.N);
+    this.totalEpochs = 0; this.trainedLevels = 0;
   },
 
-  // Record one player move (called for every detected move during a level).
+  // ---------- data ----------
   record(move) {
     const idx = this.MOVES.indexOf(move);
     if (idx < 0) return;
@@ -77,8 +70,7 @@ SB.OpponentAI = {
   },
 
   _oneHotSeq(seq) {
-    // seq: array of up to K indices (oldest..newest). Pads the front with zeros.
-    const v = new Array(this.K * this.N).fill(0);
+    const v = new Float64Array(this.IN);
     const start = this.K - seq.length;
     for (let i = 0; i < seq.length; i++) {
       const idx = seq[i];
@@ -87,114 +79,168 @@ SB.OpponentAI = {
     return v;
   },
 
-  // Predict the player's NEXT move from their recent pattern.
-  // Returns { idx, move, prob } or null if the brain isn't ready.
-  predict() {
-    if (!this.usingNN || !this.model || this._recent.length === 0) return null;
-    try {
-      return tf.tidy(() => {
-        const x = tf.tensor2d([this._oneHotSeq(this._recent.slice(-this.K))]);
-        const out = this.model.predict(x);
-        const probs = out.dataSync();
-        let best = 0;
-        for (let i = 1; i < probs.length; i++) if (probs[i] > probs[best]) best = i;
-        return { idx: best, move: this.MOVES[best], prob: probs[best] };
-      });
-    } catch (e) { return null; }
+  // ---------- forward pass (pure JS) ----------
+  _forward(x) {
+    const { W1, b1, W2, b2, W3, b3, IN, H1, H2, N } = this;
+    const z1 = new Float64Array(H1), a1 = new Float64Array(H1);
+    for (let j = 0; j < H1; j++) {
+      let s = b1[j];
+      for (let i = 0; i < IN; i++) if (x[i]) s += x[i] * W1[i * H1 + j];
+      z1[j] = s; a1[j] = s > 0 ? s : 0; // ReLU
+    }
+    const z2 = new Float64Array(H2), a2 = new Float64Array(H2);
+    for (let k = 0; k < H2; k++) {
+      let s = b2[k];
+      for (let j = 0; j < H1; j++) s += a1[j] * W2[j * H2 + k];
+      z2[k] = s; a2[k] = s > 0 ? s : 0; // ReLU
+    }
+    const z3 = new Float64Array(N);
+    let mx = -Infinity;
+    for (let m = 0; m < N; m++) {
+      let s = b3[m];
+      for (let k = 0; k < H2; k++) s += a2[k] * W3[k * N + m];
+      z3[m] = s; if (s > mx) mx = s;
+    }
+    const p = new Float64Array(N); let sum = 0;
+    for (let m = 0; m < N; m++) { p[m] = Math.exp(z3[m] - mx); sum += p[m]; }
+    for (let m = 0; m < N; m++) p[m] /= sum;
+    return { z1, a1, z2, a2, p };
   },
 
-  // Build (x,y) samples of "last K moves -> next move" from the full history.
+  // Predict the player's next move from their recent pattern.
+  predict() {
+    if (!this.W1 || this._recent.length === 0) return null;
+    const { p } = this._forward(this._oneHotSeq(this._recent.slice(-this.K)));
+    let best = 0;
+    for (let m = 1; m < this.N; m++) if (p[m] > p[best]) best = m;
+    return { idx: best, move: this.MOVES[best], prob: p[best] };
+  },
+
+  // ---------- training (backprop + SGD, pure JS, CPU only) ----------
   _samples() {
     const xs = [], ys = [];
     for (let i = this.K; i < this.moves.length; i++) {
       xs.push(this._oneHotSeq(this.moves.slice(i - this.K, i)));
-      const y = new Array(this.N).fill(0); y[this.moves[i]] = 1;
-      ys.push(y);
+      ys.push(this.moves[i]);
     }
     return { xs, ys };
   },
 
-  // Train the brain on everything so far. Called AFTER finishing `level`, to
-  // prepare a stronger brain for the next level. More data + more epochs each
-  // time (warm-started), so it gets progressively more trained.
+  // Called AFTER finishing `level`; trains a stronger brain for the next level.
   async trainForLevel(level, onProgress) {
     const epochs = 16 + (level - 1) * 10; // L1->16, L2->26, L3->36 ...
-    const samples = this._samples();
-    // Need a little data; if the player barely moved, skip the heavy lifting.
-    if (!this.usingNN || !this.model || samples.xs.length < 4) {
+    const { xs, ys } = this._samples();
+    if (!this.W1) this._initWeights();
+    if (xs.length < 4) {
       this.trainedLevels = Math.max(this.trainedLevels, level);
       this.totalEpochs += Math.round(epochs * 0.3);
       this._save();
       if (onProgress) onProgress(1, { skipped: true });
       return this.stats();
     }
-    const xs = tf.tensor2d(samples.xs);
-    const ys = tf.tensor2d(samples.ys);
-    let lastLoss = 0, lastAcc = 0;
-    const fitOpts = {
-      epochs,
-      batchSize: Math.min(16, samples.xs.length),
-      shuffle: true,
-      callbacks: {
-        onEpochEnd: (ep, logs) => {
-          lastLoss = logs.loss; lastAcc = logs.acc != null ? logs.acc : logs.accuracy || 0;
-          if (onProgress) onProgress((ep + 1) / epochs, { loss: lastLoss, acc: lastAcc });
-        },
-      },
-    };
-    try {
-      try {
-        await this.model.fit(xs, ys, fitOpts);
-      } catch (e1) {
-        // If a GPU/WebGL op fails on this device, drop to CPU and try once more.
-        try { await tf.setBackend("cpu"); await tf.ready(); await this.model.fit(xs, ys, fitOpts); }
-        catch (e2) { /* leave model as-is; predict() still works, game continues */ }
+
+    const { IN, H1, H2, N, lr } = this;
+    const order = xs.map((_, i) => i);
+
+    for (let ep = 0; ep < epochs; ep++) {
+      // shuffle
+      for (let i = order.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; const t = order[i]; order[i] = order[j]; order[j] = t; }
+      let loss = 0, correct = 0;
+
+      for (const si of order) {
+        const x = xs[si], y = ys[si];
+        const { z1, a1, z2, a2, p } = this._forward(x);
+
+        // prediction bookkeeping
+        let best = 0; for (let m = 1; m < N; m++) if (p[m] > p[best]) best = m;
+        if (best === y) correct++;
+        loss += -Math.log(Math.max(1e-9, p[y]));
+
+        // output grad: dz3 = p - onehot(y)
+        const dz3 = new Float64Array(N);
+        for (let m = 0; m < N; m++) dz3[m] = p[m] - (m === y ? 1 : 0);
+
+        // grads into layer 2 (da2 -> dz2)
+        const dz2 = new Float64Array(H2);
+        for (let k = 0; k < H2; k++) {
+          let g = 0;
+          for (let m = 0; m < N; m++) g += this.W3[k * N + m] * dz3[m];
+          dz2[k] = z2[k] > 0 ? g : 0; // ReLU'
+        }
+        // grads into layer 1 (da1 -> dz1)
+        const dz1 = new Float64Array(H1);
+        for (let j = 0; j < H1; j++) {
+          let g = 0;
+          for (let k = 0; k < H2; k++) g += this.W2[j * H2 + k] * dz2[k];
+          dz1[j] = z1[j] > 0 ? g : 0;
+        }
+
+        // SGD updates (W3,b3)
+        for (let k = 0; k < H2; k++) {
+          const ak = a2[k]; const base = k * N;
+          for (let m = 0; m < N; m++) this.W3[base + m] -= lr * ak * dz3[m];
+        }
+        for (let m = 0; m < N; m++) this.b3[m] -= lr * dz3[m];
+        // (W2,b2)
+        for (let j = 0; j < H1; j++) {
+          const aj = a1[j]; const base = j * H2;
+          for (let k = 0; k < H2; k++) this.W2[base + k] -= lr * aj * dz2[k];
+        }
+        for (let k = 0; k < H2; k++) this.b2[k] -= lr * dz2[k];
+        // (W1,b1) — x is sparse (mostly zeros) so skip zero inputs
+        for (let i = 0; i < IN; i++) {
+          if (!x[i]) continue;
+          const base = i * H1;
+          for (let j = 0; j < H1; j++) this.W1[base + j] -= lr * x[i] * dz1[j];
+        }
+        for (let j = 0; j < H1; j++) this.b1[j] -= lr * dz1[j];
       }
-    } finally {
-      xs.dispose(); ys.dispose();
+
+      this.lastLoss = loss / xs.length;
+      this.lastAcc = correct / xs.length;
+      if (onProgress) onProgress((ep + 1) / epochs, { loss: this.lastLoss, acc: this.lastAcc });
+      // yield to the UI thread occasionally so the page stays responsive
+      if ((ep & 7) === 7) await new Promise((r) => setTimeout(r, 0));
     }
+
     this.totalEpochs += epochs;
     this.trainedLevels = Math.max(this.trainedLevels, level);
-    this.lastLoss = lastLoss; this.lastAcc = lastAcc;
-    await this._saveModel();
     this._save();
     return this.stats();
   },
 
   stats() {
-    return {
-      moves: this.moves.length,
-      epochs: this.totalEpochs,
-      levels: this.trainedLevels,
-      acc: this.lastAcc || 0,
-      nn: this.usingNN,
-    };
+    return { moves: this.moves.length, epochs: this.totalEpochs, levels: this.trainedLevels, acc: this.lastAcc || 0, nn: true };
   },
 
-  // ---------- persistence ----------
+  // ---------- persistence (localStorage, tiny JSON) ----------
+  _key() { return "fc_brain_" + this.profileId; },
   _save() {
     try {
-      localStorage.setItem(this._moveKey(), JSON.stringify(this.moves));
-      localStorage.setItem(this._metaKey(), JSON.stringify({ totalEpochs: this.totalEpochs, trainedLevels: this.trainedLevels }));
+      const w = (a) => Array.from(a, (v) => +v.toFixed(5));
+      localStorage.setItem(this._key(), JSON.stringify({
+        v: 1, moves: this.moves, totalEpochs: this.totalEpochs, trainedLevels: this.trainedLevels,
+        W1: w(this.W1), b1: w(this.b1), W2: w(this.W2), b2: w(this.b2), W3: w(this.W3), b3: w(this.b3),
+      }));
     } catch (e) {}
   },
-  async _saveModel() {
-    if (this.model) { try { await this.model.save("indexeddb://" + this._modelKey()); } catch (e) {} }
-  },
   _load() {
-    try { this.moves = JSON.parse(localStorage.getItem(this._moveKey()) || "[]") || []; } catch (e) { this.moves = []; }
     try {
-      const m = JSON.parse(localStorage.getItem(this._metaKey()) || "{}");
-      this.totalEpochs = m.totalEpochs || 0;
-      this.trainedLevels = m.trainedLevels || 0;
-    } catch (e) { this.totalEpochs = 0; this.trainedLevels = 0; }
+      const d = JSON.parse(localStorage.getItem(this._key()) || "null");
+      if (!d || !d.W1) { this.moves = (d && d.moves) || []; return false; }
+      this.moves = d.moves || [];
+      this.totalEpochs = d.totalEpochs || 0;
+      this.trainedLevels = d.trainedLevels || 0;
+      this.W1 = Float64Array.from(d.W1); this.b1 = Float64Array.from(d.b1);
+      this.W2 = Float64Array.from(d.W2); this.b2 = Float64Array.from(d.b2);
+      this.W3 = Float64Array.from(d.W3); this.b3 = Float64Array.from(d.b3);
+      return true;
+    } catch (e) { return false; }
   },
 
-  // Wipe this fighter's brain (used by "fresh start").
   async reset() {
-    this.moves = []; this._recent = []; this.totalEpochs = 0; this.trainedLevels = 0;
-    try { localStorage.removeItem(this._moveKey()); localStorage.removeItem(this._metaKey()); } catch (e) {}
-    try { await tf.io.removeModel("indexeddb://" + this._modelKey()); } catch (e) {}
-    if (this.usingNN) this.model = this._build();
+    this.moves = []; this._recent = [];
+    this._initWeights();
+    try { localStorage.removeItem(this._key()); } catch (e) {}
   },
 };

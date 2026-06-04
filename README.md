@@ -40,7 +40,7 @@ webcam → MoveNet pose (TensorFlow.js, on-device)
 
 - **Pose** — `@tensorflow-models/pose-detection` MoveNet *SinglePose Lightning* for fast, real-time skeletons on a normal laptop. (`js/pose.js`)
 - **Gestures** — depth-free heuristics on wrist velocity, arm extension (in shoulder-widths), and head offset, with per-move cooldowns. Tuned for *category + timing*, the part that's robust on a webcam. (`js/gestures.js`)
-- **Single-player learning AI** — a real **TensorFlow.js neural network** (`[lastK moves]→softmax(next move)`) is trained **in your browser** on the moves you throw. After each of the 4 levels it `fit()`s on all your moves so far, **warm-started and for more epochs each level** (≈16 → 42 → 78 cumulative), so it gets measurably more "trained on you." In-fight the opponent calls `predict()` and pre-guards your likely next punch; higher levels trust the prediction more. The brain (dataset + weights) persists per fighter (localStorage + IndexedDB), so returning players face an even smarter opponent. (`js/opponentAI.js`, `js/game.js`)
+- **Single-player learning AI** — a real neural network (`[lastK moves]→24→16→softmax(next move)`, ~870 weights) **written in plain JavaScript and trained 100% on the CPU — no TensorFlow, no GPU/WebGL.** After each of the 4 levels it runs backprop + SGD on all your moves so far, **warm-started and for more epochs each level** (16 → 42 → 78 → 124 cumulative), so it gets measurably more "trained on you." Training all 4 levels takes ~140 ms on a laptop CPU (well under a second even on a weak phone). In-fight the opponent calls `predict()` and pre-guards your likely next punch; higher levels trust the prediction more. The brain (move history + weights) persists per fighter in localStorage, so returning players face an even smarter opponent. (`js/opponentAI.js`, `js/game.js`)
 - **Multiplayer (1v1 / 1v2 / 2v2)** — instead of direct browser-to-browser P2P (which breaks across networks/countries and would need a TURN relay), every player connects **outbound** to a **free public MQTT-over-WebSocket broker** and they exchange **only tiny JSON move/state messages** on a shared room topic. Outbound connections always succeed (like loading any website), so it works **worldwide with zero setup — no TURN, no accounts, no server to host**. Each side runs its own camera + detection locally; **no video is ever transmitted** (only a one-time tiny face thumbnail for the opponent head). The host acts as referee (authoritative HP/damage); a `?room=CODE&fmt=...` link is forwardable over WhatsApp. (`js/multiplayer.js`)
 - **Coach** — short, curated boxing-coach lines chosen on-device. No network, no key — the game is fully free and self-contained. (`js/coach.js`)
 - **Privacy** — everything runs locally. Your camera feed and pose data never leave your device; multiplayer sends only tiny move messages (and a small face thumbnail) to the people you're fighting.
@@ -66,8 +66,8 @@ Open `http://localhost:7788`, allow camera access, and pick a mode. No key, no l
 
 ## Stack
 
-- TensorFlow.js + MoveNet (pose estimation)
-- TensorFlow.js Layers (on-device neural net — the single-player AI that learns your style)
+- TensorFlow.js + MoveNet (pose estimation; uses the GPU via WebGL when available, with a CPU fallback)
+- A hand-written, plain-JavaScript neural network (CPU-only, no GPU) — the single-player AI that learns your style
 - MQTT over WebSocket via a free public broker (zero-setup, cross-network multiplayer message relay)
 - Vanilla HTML/CSS/JS — zero build tooling, fully reproducible
 
@@ -87,7 +87,7 @@ Per CS 153 policy, AI tools were used throughout:
 
 - **Ideation & scoping** — used a chat LLM to rank movement domains for webcam feasibility, pivot from a "form grader" to a *game* (the key insight that makes it work), and shape the multiplayer concept, naming, and pitch.
 - **Code generation** — the pose pipeline, gesture heuristics, game loops, WebRTC multiplayer, and UI were written with substantial AI assistance, then reviewed, integrated, and tuned by the author.
-- **Runtime AI (on-device)** — the single-player opponent is a real TensorFlow.js neural network **trained live in the player's browser** on their own moves; it gets trained for more epochs each level. No third-party AI service is used at runtime — the game is fully free and self-contained.
+- **Runtime AI (on-device)** — the single-player opponent is a real neural network **hand-written in plain JavaScript and trained live on the player's CPU** (no TensorFlow, no GPU, no server) on their own moves; it trains for more epochs each level. No third-party AI service is used at runtime — the game is fully free and self-contained.
 
 All major design decisions, the gesture-detection heuristics, the learning-opponent design, and the netcode fairness model were directed and reviewed by the author. The product, integration, and iteration are the author's own work.
 

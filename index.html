@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=29" />
+  <link rel="stylesheet" href="css/styles.css?v=30" />
 
   <!-- TensorFlow.js + MoveNet pose detection (CDN, no build step needed) -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.20.0/dist/tf-core.min.js"></script>
@@ -17,10 +17,9 @@
        a universal fallback so it still runs on devices without usable WebGL. -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.20.0/dist/tf-backend-webgl.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-cpu@4.20.0/dist/tf-backend-cpu.min.js"></script>
-  <!-- tfjs-layers lets us BUILD + TRAIN a small neural net in-browser:
-       the single-player AI opponent learns the player's moves between levels. -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-layers@4.20.0/dist/tf-layers.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
+  <!-- NOTE: the single-player AI opponent (js/opponentAI.js) is a plain-JavaScript
+       neural network trained 100% on the CPU — no TensorFlow, no GPU/WebGL. -->
 
   <!-- MQTT over WebSocket: tiny move-messages relayed via a free public broker,
        so cross-network / worldwide play works with no TURN and no setup. -->
@@ -295,18 +294,18 @@
   </div>
 
   <!-- App modules (?v bumped on each deploy so browsers always load the latest) -->
-  <script src="js/music.js?v=29"></script>
-  <script src="js/db.js?v=29"></script>
-  <script src="js/fightclub.js?v=29"></script>
-  <script src="js/config.js?v=29"></script>
-  <script src="js/pose.js?v=29"></script>
-  <script src="js/face.js?v=29"></script>
-  <script src="js/gestures.js?v=29"></script>
-  <script src="js/coach.js?v=29"></script>
-  <script src="js/training.js?v=29"></script>
-  <script src="js/opponentAI.js?v=29"></script>
-  <script src="js/game.js?v=29"></script>
-  <script src="js/multiplayer.js?v=29"></script>
-  <script src="js/main.js?v=29"></script>
+  <script src="js/music.js?v=30"></script>
+  <script src="js/db.js?v=30"></script>
+  <script src="js/fightclub.js?v=30"></script>
+  <script src="js/config.js?v=30"></script>
+  <script src="js/pose.js?v=30"></script>
+  <script src="js/face.js?v=30"></script>
+  <script src="js/gestures.js?v=30"></script>
+  <script src="js/coach.js?v=30"></script>
+  <script src="js/training.js?v=30"></script>
+  <script src="js/opponentAI.js?v=30"></script>
+  <script src="js/game.js?v=30"></script>
+  <script src="js/multiplayer.js?v=30"></script>
+  <script src="js/main.js?v=30"></script>
 </body>
 </html>
