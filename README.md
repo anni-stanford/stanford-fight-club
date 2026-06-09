@@ -1,5 +1,7 @@
 # 🥊 Stanford Fight Club
 
+https://anni-stanford.github.io/stanford-fight-club/ 
+
 **Stanford Fight Club** makes staying fit genuinely fun. It turns your webcam into a boxing ring — no controller, no gym, no gear. Square up to your screen and fight an AI that *learns your style* or a friend across the internet who reacts to your every move, building fitness, reflexes, and real boxing skills while you play. **Your body is the controller. Step in and throw down.**
 
 > 🎓 **This project was built while working on the CS 153: Frontier Systems at Stanford.** Built solo with heavy AI assistance (see [AI Usage](#-ai-usage-disclosure)).
